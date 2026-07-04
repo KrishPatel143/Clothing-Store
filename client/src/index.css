@@ -1,0 +1,97 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Karla', 'Helvetica Neue', sans-serif;
+
+  --color-ivory: #faf6ef;
+  --color-parchment: #f3ecdf;
+  --color-ink: #211d19;
+  --color-ink-soft: #57504a;
+  --color-clay: #b4532a;
+  --color-clay-deep: #8f3d1c;
+  --color-sage: #7d8471;
+  --color-gold: #c9a86a;
+
+  --shadow-lift: 0 20px 40px -20px rgb(33 29 25 / 0.25);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-ivory text-ink font-body antialiased;
+  background-image: radial-gradient(ellipse 80% 60% at 70% -10%, rgb(201 168 106 / 0.12), transparent),
+    radial-gradient(ellipse 60% 50% at 0% 100%, rgb(125 132 113 / 0.08), transparent);
+  background-attachment: fixed;
+}
+
+/* Grain overlay for editorial texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.03 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 2;
+}
+
+h1, h2, h3, .display {
+  @apply font-display;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise-1 { animation-delay: 0.08s; }
+.rise-2 { animation-delay: 0.16s; }
+.rise-3 { animation-delay: 0.26s; }
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.96); opacity: 0.9; }
+  70% { transform: scale(1.12); opacity: 0; }
+  100% { opacity: 0; }
+}
+.pulse-ring { animation: pulse-ring 1.8s ease-out infinite; }
+
+@keyframes scanline {
+  0% { top: 6%; }
+  50% { top: 90%; }
+  100% { top: 6%; }
+}
+.scanline { animation: scanline 2.6s ease-in-out infinite; }
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(100deg, transparent 30%, rgb(250 246 239 / 0.45) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 bg-ink text-ivory px-6 py-3 text-sm tracking-[0.14em] uppercase transition-all duration-300 hover:bg-clay hover:shadow-lift disabled:opacity-40 disabled:pointer-events-none;
+}
+.btn-accent {
+  @apply inline-flex items-center justify-center gap-2 bg-clay text-ivory px-6 py-3 text-sm tracking-[0.14em] uppercase transition-all duration-300 hover:bg-clay-deep hover:shadow-lift disabled:opacity-40 disabled:pointer-events-none;
+}
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 border border-ink/25 px-6 py-3 text-sm tracking-[0.14em] uppercase transition-all duration-300 hover:border-ink hover:bg-ink hover:text-ivory disabled:opacity-40;
+}
+.input-field {
+  @apply w-full border border-ink/20 bg-white/70 px-4 py-2.5 text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-clay focus:ring-1 focus:ring-clay transition-colors;
+}
+.label-caps {
+  @apply block text-[11px] tracking-[0.18em] uppercase text-ink-soft mb-1.5;
+}

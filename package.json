@@ -1,0 +1,15 @@
+{
+  "name": "smart-clothing-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered clothing e-commerce platform with camera-based body scan sizing",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "seed": "npm run seed --prefix server",
+    "build": "npm run build --prefix client",
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
