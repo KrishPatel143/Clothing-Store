@@ -38,11 +38,17 @@ const kidsChart = [
   { size: 'L', shoulder: 36, chest: 74, waist: 65, hip: 76 },
 ];
 
-// Solid-colour placeholder images (SVG data URIs) so the storefront looks
-// composed without shipping binary assets. Swap for real URLs in production.
+// Solid-colour placeholder images (SVG data URIs) for products without real photos.
+// Virtual try-on requires JPEG/PNG garment photos — a few products below use real URLs.
 const img = (label, bg, fg = '#ffffff') => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="750"><rect width="100%" height="100%" fill="${bg}"/><text x="50%" y="50%" fill="${fg}" font-family="Georgia, serif" font-size="34" text-anchor="middle" dominant-baseline="middle">${label}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+};
+
+const photo = {
+  oxfordShirt: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&q=80&auto=format&fit=crop',
+  crewTee: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&q=80&auto=format&fit=crop',
+  wrapDress: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=600&q=80&auto=format&fit=crop',
 };
 
 async function run() {
@@ -81,7 +87,7 @@ async function run() {
     P({
       name: 'Oxford Slim-Fit Shirt', description: 'Crisp cotton oxford with a tailored slim fit. A wardrobe staple that works from boardroom to brunch.',
       category: men._id, subCategory: menShirts._id, price: 1799, stock: 42, featured: true,
-      images: [img('Oxford Shirt', '#3b5b7c')], colors: ['Sky Blue', 'White'],
+      images: [photo.oxfordShirt], colors: ['Sky Blue', 'White'],
       suitedBodyTypes: ['Rectangle', 'Athletic', 'Inverted Triangle'], suitedSkinTones: ['Fair', 'Wheatish', 'Medium', 'Deep'],
       sizeChart: menTopChart,
     }),
@@ -95,7 +101,7 @@ async function run() {
     P({
       name: 'Essential Crew Tee', description: 'Heavyweight combed cotton tee with a clean, structured drape. No logos, no fuss.',
       category: men._id, subCategory: menTshirts._id, price: 799, stock: 120,
-      images: [img('Crew Tee', '#2e2e33')], colors: ['Black', 'White', 'Navy'],
+      images: [photo.crewTee], colors: ['Black', 'White', 'Navy'],
       suitedBodyTypes: [], suitedSkinTones: [],
       sizeChart: menTopChart,
     }),
@@ -116,7 +122,7 @@ async function run() {
     P({
       name: 'Wrap Midi Dress', description: 'Fluid viscose wrap dress that cinches at the waist and skims everywhere else.',
       category: women._id, subCategory: womenDresses._id, price: 2499, stock: 30, featured: true,
-      images: [img('Wrap Dress', '#8d5b4c')], colors: ['Terracotta', 'Black'],
+      images: [photo.wrapDress], colors: ['Terracotta', 'Black'],
       suitedBodyTypes: ['Hourglass', 'Pear', 'Rectangle'], suitedSkinTones: ['Wheatish', 'Medium', 'Deep'],
       sizeChart: womenTopChart,
     }),

@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, tryOn } from '../api/client';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import SizeChartTable from '../components/SizeChartTable.jsx';
+import TryOnPreview from '../components/TryOnPreview.jsx';
 import { formatINR } from '../components/ProductCard.jsx';
 import { bestSizeFromChart, loadLocalMeasurements } from '../scan/fit.js';
+import { hasUserPhoto, loadUserPhoto, blobToBase64 } from '../scan/userPhoto.js';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -18,11 +20,20 @@ export default function ProductDetail() {
   const [size, setSize] = useState(location.state?.recommendedSize || '');
   const [color, setColor] = useState('');
   const [added, setAdded] = useState(false);
+  const [userHasPhoto, setUserHasPhoto] = useState(false);
+  const [tryOnLoading, setTryOnLoading] = useState(false);
+  const [tryOnError, setTryOnError] = useState('');
+  const [tryOnSrc, setTryOnSrc] = useState('');
+  const [showingTryOn, setShowingTryOn] = useState(false);
 
   useEffect(() => {
     setProduct(null);
     api(`/products/${id}`, { auth: false }).then(setProduct).catch(() => {});
   }, [id]);
+
+  useEffect(() => {
+    hasUserPhoto().then(setUserHasPhoto);
+  }, []);
 
   const measurements = useMemo(
     () => user?.savedMeasurements || loadLocalMeasurements(),
@@ -38,6 +49,40 @@ export default function ProductDetail() {
     if (!size && fit?.size) setSize(fit.size);
     if (product && !color && product.colors?.length) setColor(product.colors[0]);
   }, [fit, product]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setTryOnSrc('');
+    setTryOnError('');
+    setShowingTryOn(false);
+  }, [id, imgIdx]);
+
+  const productImageUrl = product?.images?.[imgIdx];
+  const gallerySrc = showingTryOn && tryOnSrc ? tryOnSrc : productImageUrl;
+
+  const handleTryOn = useCallback(async () => {
+    if (!productImageUrl) return;
+    setTryOnLoading(true);
+    setTryOnError('');
+    try {
+      const blob = await loadUserPhoto();
+      if (!blob) {
+        setUserHasPhoto(false);
+        setTryOnError('No scan photo found. Complete a body scan first.');
+        return;
+      }
+      const personImageBase64 = await blobToBase64(blob);
+      const { imageBase64, mimeType } = await tryOn({
+        personImageBase64,
+        productImageUrl,
+      });
+      setTryOnSrc(`data:${mimeType || 'image/jpeg'};base64,${imageBase64}`);
+      setShowingTryOn(true);
+    } catch (err) {
+      setTryOnError(err.message || 'Could not generate try-on preview.');
+    } finally {
+      setTryOnLoading(false);
+    }
+  }, [productImageUrl]);
 
   if (!product) {
     return (
@@ -62,12 +107,17 @@ export default function ProductDetail() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 grid md:grid-cols-2 gap-12">
       {/* Gallery */}
       <div>
-        <div className="aspect-[4/5] bg-parchment overflow-hidden">
-          {product.images?.[imgIdx] && (
-            <img src={product.images[imgIdx]} alt={product.name} className="w-full h-full object-cover" />
+        <div className="aspect-[4/5] bg-parchment overflow-hidden relative">
+          {gallerySrc && (
+            <img src={gallerySrc} alt={product.name} className="w-full h-full object-cover" />
+          )}
+          {tryOnLoading && (
+            <div className="absolute inset-0 bg-ink/40 flex flex-col items-center justify-center text-ivory">
+              <p className="text-sm tracking-wide">Creating your try-on preview…</p>
+            </div>
           )}
         </div>
-        {product.images?.length > 1 && (
+        {product.images?.length > 1 && !showingTryOn && (
           <div className="flex gap-2 mt-3">
             {product.images.map((src, i) => (
               <button
@@ -79,6 +129,26 @@ export default function ProductDetail() {
               </button>
             ))}
           </div>
+        )}
+        {userHasPhoto ? (
+          <TryOnPreview
+            loading={tryOnLoading}
+            error={tryOnError}
+            tryOnSrc={tryOnSrc}
+            productSrc={productImageUrl}
+            showingTryOn={showingTryOn}
+            onGenerate={handleTryOn}
+            onShowProduct={() => setShowingTryOn(false)}
+            onShowTryOn={() => setShowingTryOn(true)}
+          />
+        ) : (
+          <p className="text-sm text-ink-soft mt-4">
+            Want to see it on you?{' '}
+            <Link to="/scan" className="text-clay underline underline-offset-4 hover:text-clay-deep">
+              Scan yourself first
+            </Link>{' '}
+            — your photo stays on this device.
+          </p>
         )}
       </div>
 

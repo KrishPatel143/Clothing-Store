@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext.jsx';
 import { formatINR } from '../components/ProductCard.jsx';
+import { hasUserPhoto, clearUserPhoto } from '../scan/userPhoto.js';
 
 const STATUS_TINT = {
   pending: 'text-gold',
@@ -15,10 +16,22 @@ const STATUS_TINT = {
 export default function Profile() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
+  const [photoSaved, setPhotoSaved] = useState(false);
+  const [photoCleared, setPhotoCleared] = useState(false);
 
   useEffect(() => {
     api('/orders/mine').then((d) => setOrders(d.orders)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    hasUserPhoto().then(setPhotoSaved);
+  }, [photoCleared]);
+
+  const handleDeletePhoto = async () => {
+    await clearUserPhoto();
+    setPhotoCleared((c) => !c);
+    setPhotoSaved(false);
+  };
 
   const m = user?.savedMeasurements;
 
@@ -62,6 +75,17 @@ export default function Profile() {
           <p className="text-xs text-ink-soft/60 mt-2">
             Measured {new Date(m.measuredAt).toLocaleDateString()}
           </p>
+        )}
+        {photoSaved && (
+          <div className="mt-4 border border-ink/10 bg-parchment/40 p-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-ink-soft max-w-md">
+              A scan photo is saved on this device for virtual try-on. It is never stored on our
+              servers.
+            </p>
+            <button type="button" onClick={handleDeletePhoto} className="btn-ghost text-sm">
+              Delete my photo
+            </button>
+          </div>
         )}
       </section>
 

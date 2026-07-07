@@ -28,3 +28,11 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   }
   return data;
 }
+
+export async function tryOn({ personImageBase64, productImageUrl }) {
+  return api('/tryon', {
+    method: 'POST',
+    body: { personImageBase64, productImageUrl },
+    auth: false,
+  });
+}

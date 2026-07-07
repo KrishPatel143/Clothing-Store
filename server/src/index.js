@@ -8,9 +8,11 @@ import productRoutes from './routes/products.js';
 import userRoutes from './routes/users.js';
 import orderRoutes from './routes/orders.js';
 import recommendationRoutes from './routes/recommendations.js';
+import tryonRoutes from './routes/tryon.js';
 
 const app = express();
 app.use(cors());
+app.use('/api/tryon', express.json({ limit: '12mb' }), tryonRoutes);
 app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));

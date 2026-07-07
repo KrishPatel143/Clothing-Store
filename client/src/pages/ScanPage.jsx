@@ -7,6 +7,7 @@ import { getPoseLandmarker, getSegmenter } from '../scan/vision.js';
 import { framingFeedback, computeMeasurements } from '../scan/measure.js';
 import { classifyBodyType, sampleSkinTone, BODY_TYPE_NOTES, TONE_NOTES } from '../scan/classify.js';
 import { saveLocalMeasurements } from '../scan/fit.js';
+import { saveUserPhoto, canvasToBlob, clearUserPhoto } from '../scan/userPhoto.js';
 
 const HOLD_FRAMES = 45; // ~1.5s of continuous good framing before capture
 
@@ -23,6 +24,7 @@ export default function ScanPage() {
   const [result, setResult] = useState(null);
   const [recs, setRecs] = useState([]);
   const [saved, setSaved] = useState(false);
+  const [photoDeleted, setPhotoDeleted] = useState(false);
   const [manual, setManual] = useState({ shoulder: '', chest: '', waist: '', hip: '' });
 
   const videoRef = useRef(null);
@@ -52,6 +54,13 @@ export default function ScanPage() {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       ctx.drawImage(video, 0, 0);
       stopCamera();
+
+      try {
+        const photoBlob = await canvasToBlob(canvas);
+        if (photoBlob) await saveUserPhoto(photoBlob);
+      } catch {
+        /* photo save is optional — measurements still work */
+      }
 
       let mask = null;
       let maskW = 0;
@@ -94,7 +103,7 @@ export default function ScanPage() {
         /* optional */
       }
 
-      // The frame stays here; only these numbers ever leave the browser.
+      // Only measurements leave the browser for recommendations; the photo stays in IndexedDB.
       const profile = { ...measurements, bodyType, skinTone };
 
       // A brief beat so the "analyzing" moment feels considered, not jumpy
@@ -201,6 +210,11 @@ export default function ScanPage() {
     setSaved(true);
   };
 
+  const handleDeletePhoto = async () => {
+    await clearUserPhoto();
+    setPhotoDeleted(true);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-ink text-ivory overflow-y-auto">
       {/* Close */}
@@ -254,10 +268,10 @@ export default function ScanPage() {
             </button>
 
             <p className="rise rise-3 mt-8 text-[11px] leading-relaxed text-ivory/40 border-t border-ivory/10 pt-4">
-              <strong className="text-ivory/60">Why we ask for camera access:</strong> your video is
-              analysed entirely on this device to estimate shoulder, chest, waist and hip sizes. No
-              photo or video is uploaded or stored — only the resulting numbers, and only if you
-              choose to save them.
+              <strong className="text-ivory/60">Privacy:</strong> your video is analysed on this
+              device. One frame is saved locally in your browser for virtual try-on — it is never
+              uploaded unless you choose to preview a product. Only measurement numbers are sent to
+              our servers, and only if you save them.
             </p>
           </div>
         </div>
@@ -435,13 +449,27 @@ export default function ScanPage() {
                   setResult(null);
                   setRecs([]);
                   setSaved(false);
+                  setPhotoDeleted(false);
                   setStage('intro');
                 }}
                 className="btn-ghost"
               >
                 Rescan
               </button>
+              {!photoDeleted && (
+                <button type="button" onClick={handleDeletePhoto} className="btn-ghost text-sm">
+                  Delete my photo
+                </button>
+              )}
             </div>
+            {photoDeleted ? (
+              <p className="text-xs text-ink-soft mt-3">Scan photo removed from this device.</p>
+            ) : (
+              <p className="text-xs text-ink-soft mt-3 max-w-lg">
+                Your scan photo is saved on this device for virtual try-on on product pages. It is
+                never stored on our servers unless you request a preview.
+              </p>
+            )}
 
             {/* Recommendations */}
             <div className="mt-16">

@@ -27,7 +27,7 @@ npm run dev                  # API on :5000, client on :5173
 ### Customer
 - Home, category navigation, featured/trending rows
 - Product listing with filters (category, sub-category, size, price, search, sort) + pagination
-- Product detail with gallery, size chart (in/cm toggle), "Fits me?" CTA
+- Product detail with gallery, size chart (in/cm toggle), "Fits me?" CTA, virtual try-on preview
 - Cart (guest-friendly, persisted locally), checkout, order history
 - Profile with saved body measurements — scan once, every product shows your size
 
@@ -46,6 +46,23 @@ npm run dev                  # API on :5000, client on :5173
    best-fit size pre-selected, save-to-profile
 
 Only derived numbers are ever sent to the API (`POST /api/recommendations`) — never frames.
+One scan frame is saved locally in IndexedDB for virtual try-on; it is only sent to
+`POST /api/tryon` when the shopper requests a preview, and is never stored server-side.
+
+### Virtual try-on (product page)
+After a body scan, if a local photo exists the product page shows **See how it looks on you**.
+The client sends the photo + product image URL to `POST /api/tryon`; the server calls Gemini
+image generation and returns a JPEG preview. Shoppers can delete their photo from Profile.
+
+**Setup:**
+```bash
+# In server/.env — get a key from https://aistudio.google.com/apikey
+GEMINI_API_KEY=your-key-from-aistudio.google.com
+```
+
+Try-on uses prompt-based Gemini image generation (`gemini-2.5-flash-image` by default). Results
+may vary compared to dedicated garment try-on models. Works best with real JPEG/PNG product
+photos (not SVG placeholders). The seed script includes a few Unsplash garment URLs for testing.
 
 ### Admin (`/admin`)
 - Dashboard: product/stock totals, most-viewed, most-recommended, low-stock alerts
