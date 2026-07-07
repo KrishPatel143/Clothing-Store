@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { api, tryOn } from '../api/client';
 import { useCart } from '../context/CartContext.jsx';
@@ -8,6 +8,13 @@ import TryOnPreview from '../components/TryOnPreview.jsx';
 import { formatINR } from '../components/ProductCard.jsx';
 import { bestSizeFromChart, loadLocalMeasurements } from '../scan/fit.js';
 import { hasUserPhoto, loadUserPhoto, blobToBase64 } from '../scan/userPhoto.js';
+import {
+  createTryOnTrace,
+  formatTryOnError,
+  newTryOnRequestId,
+  TRY_ON_STAGE_LABELS,
+} from '../scan/tryOnTrace.js';
+import { loadTryOnPreview, saveTryOnPreview } from '../scan/tryOnCache.js';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -23,8 +30,24 @@ export default function ProductDetail() {
   const [userHasPhoto, setUserHasPhoto] = useState(false);
   const [tryOnLoading, setTryOnLoading] = useState(false);
   const [tryOnError, setTryOnError] = useState('');
+  const [tryOnStage, setTryOnStage] = useState('');
   const [tryOnSrc, setTryOnSrc] = useState('');
   const [showingTryOn, setShowingTryOn] = useState(false);
+  const tryOnUrlRef = useRef(null);
+
+  const setTryOnImage = useCallback((url) => {
+    if (tryOnUrlRef.current?.startsWith('blob:')) {
+      URL.revokeObjectURL(tryOnUrlRef.current);
+    }
+    tryOnUrlRef.current = url;
+    setTryOnSrc(url || '');
+  }, []);
+
+  useEffect(() => () => {
+    if (tryOnUrlRef.current?.startsWith('blob:')) {
+      URL.revokeObjectURL(tryOnUrlRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     setProduct(null);
@@ -51,38 +74,83 @@ export default function ProductDetail() {
   }, [fit, product]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setTryOnSrc('');
+    let cancelled = false;
+
     setTryOnError('');
     setShowingTryOn(false);
-  }, [id, imgIdx]);
+    setTryOnImage('');
+
+    loadTryOnPreview(id, imgIdx).then((record) => {
+      if (cancelled || !record?.blob) return;
+      const url = URL.createObjectURL(record.blob);
+      setTryOnImage(url);
+      setShowingTryOn(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, imgIdx, setTryOnImage]);
 
   const productImageUrl = product?.images?.[imgIdx];
   const gallerySrc = showingTryOn && tryOnSrc ? tryOnSrc : productImageUrl;
 
   const handleTryOn = useCallback(async () => {
     if (!productImageUrl) return;
+    const trace = createTryOnTrace(newTryOnRequestId());
     setTryOnLoading(true);
     setTryOnError('');
+    setTryOnStage('load_photo');
     try {
+      trace.step('load_photo');
       const blob = await loadUserPhoto();
       if (!blob) {
         setUserHasPhoto(false);
-        setTryOnError('No scan photo found. Complete a body scan first.');
+        const err = new Error('No scan photo found. Complete a body scan first.');
+        trace.fail('load_photo', err);
+        setTryOnError(formatTryOnError(err, trace));
         return;
       }
+
+      setTryOnStage('encode_person');
+      trace.step('encode_person', { photoBytes: blob.size, photoType: blob.type });
       const personImageBase64 = await blobToBase64(blob);
+
+      setTryOnStage('api_request');
+      trace.step('api_request', {
+        productUrl: productImageUrl.slice(0, 120),
+        personBase64Chars: personImageBase64.length,
+      });
       const { imageBase64, mimeType } = await tryOn({
         personImageBase64,
         productImageUrl,
+        requestId: trace.requestId,
       });
-      setTryOnSrc(`data:${mimeType || 'image/jpeg'};base64,${imageBase64}`);
+
+      trace.step('render_preview');
+      const previewBlob = await saveTryOnPreview({
+        productId: id,
+        imgIdx,
+        productImageUrl,
+        imageBase64,
+        mimeType,
+      });
+      setTryOnImage(URL.createObjectURL(previewBlob));
       setShowingTryOn(true);
+      trace.success({ outputMime: mimeType });
     } catch (err) {
-      setTryOnError(err.message || 'Could not generate try-on preview.');
+      const failStage = err.stage || 'api_request';
+      trace.fail(failStage, err, {
+        serverSteps: err.steps,
+        geminiMs: err.geminiMs,
+        geminiMeta: err.geminiMeta,
+      });
+      setTryOnError(formatTryOnError(err, trace));
     } finally {
       setTryOnLoading(false);
+      setTryOnStage('');
     }
-  }, [productImageUrl]);
+  }, [productImageUrl, id, imgIdx, setTryOnImage]);
 
   if (!product) {
     return (
@@ -112,8 +180,13 @@ export default function ProductDetail() {
             <img src={gallerySrc} alt={product.name} className="w-full h-full object-cover" />
           )}
           {tryOnLoading && (
-            <div className="absolute inset-0 bg-ink/40 flex flex-col items-center justify-center text-ivory">
-              <p className="text-sm tracking-wide">Creating your try-on preview…</p>
+            <div className="absolute inset-0 bg-ink/40 flex flex-col items-center justify-center text-ivory px-6 text-center">
+              <p className="text-sm tracking-wide">
+                {TRY_ON_STAGE_LABELS[tryOnStage] || 'Creating your try-on preview…'}
+              </p>
+              {tryOnStage === 'api_request' && (
+                <p className="text-xs text-ivory/70 mt-2">This may take 1–2 minutes. Please keep this tab open.</p>
+              )}
             </div>
           )}
         </div>
@@ -133,6 +206,7 @@ export default function ProductDetail() {
         {userHasPhoto ? (
           <TryOnPreview
             loading={tryOnLoading}
+            stage={tryOnStage}
             error={tryOnError}
             tryOnSrc={tryOnSrc}
             productSrc={productImageUrl}

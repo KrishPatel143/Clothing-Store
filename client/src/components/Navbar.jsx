@@ -1,6 +1,7 @@
 import { Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCart } from '../context/CartContext.jsx';
+import BrandLogo from './BrandLogo.jsx';
 
 const navLink = ({ isActive }) =>
   `text-[13px] tracking-[0.16em] uppercase transition-colors ${
@@ -14,8 +15,8 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 bg-ivory/85 backdrop-blur-md border-b border-ink/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
-        <Link to="/" className="font-display text-2xl tracking-wide">
-          MIRA<span className="text-clay">.</span>
+        <Link to="/" className="block">
+          <BrandLogo />
         </Link>
 
         <nav className="hidden md:flex items-center gap-7">

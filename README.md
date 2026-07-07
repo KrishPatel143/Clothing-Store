@@ -1,4 +1,4 @@
-# MIRA — AI-Powered Smart Clothing Store
+# linencut & more — AI-Powered Smart Clothing Store
 
 Full-stack clothing e-commerce platform with a camera-based **body scan** that measures the
 shopper in-browser and recommends correctly-sized, well-matched clothing.

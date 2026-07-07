@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { generateTryOn } from '../utils/geminiTryOn.js';
+import { createTryOnLogger, newRequestId, tryOnErrorPayload } from '../utils/tryOnLogger.js';
 
 const router = Router();
 
@@ -25,15 +26,44 @@ function rateLimit(req, res, next) {
 }
 
 // POST /api/tryon
-// Body: { personImageBase64, productImageUrl }
+// Body: { personImageBase64, productImageUrl, requestId? }
 // Stateless proxy — images are not stored server-side.
 router.post('/', rateLimit, async (req, res) => {
+  const requestId = req.body?.requestId || newRequestId();
+  const log = createTryOnLogger(requestId);
+  log.step('request_received', {
+    ip: req.ip || req.socket?.remoteAddress,
+    productUrl: typeof req.body?.productImageUrl === 'string'
+      ? req.body.productImageUrl.slice(0, 120)
+      : undefined,
+    personBase64Chars: req.body?.personImageBase64?.length || 0,
+  });
+
   try {
     const { personImageBase64, productImageUrl } = req.body || {};
-    const result = await generateTryOn({ personImageBase64, productImageUrl });
-    res.json(result);
+    const result = await generateTryOn({ personImageBase64, productImageUrl, log });
+    log.success({ outputMime: result.mimeType });
+    res.json({ ...result, requestId });
   } catch (err) {
-    res.status(err.status || 500).json({ message: err.message || 'Try-on failed' });
+    const stage =
+      err.stage ||
+      (err.message?.includes('product image')
+        ? 'fetch_product_image'
+        : err.message?.includes('personImage')
+          ? 'validate_person_image'
+          : err.geminiMeta || err.geminiMs
+            ? 'gemini_generate'
+            : 'unknown');
+    log.fail(stage, err, {
+      status: err.status,
+      geminiMs: err.geminiMs,
+      geminiError: err.geminiError,
+      geminiMeta: err.geminiMeta,
+    });
+    res.status(err.status || 500).json(tryOnErrorPayload(log, stage, err, {
+      geminiMs: err.geminiMs,
+      geminiMeta: err.geminiMeta,
+    }));
   }
 });
 

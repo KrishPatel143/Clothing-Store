@@ -27,7 +27,7 @@ export default function Login() {
   return (
     <div className="max-w-md mx-auto px-4 py-20">
       <h1 className="font-display text-4xl font-light mb-2">Welcome back</h1>
-      <p className="text-sm text-ink-soft mb-8">Sign in to your MIRA account.</p>
+      <p className="text-sm text-ink-soft mb-8">Sign in to your linencut & more account.</p>
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label className="label-caps">Email</label>

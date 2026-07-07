@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { cmToIn } from '../scan/units.js';
 
 const DIMS = [
   ['shoulder', 'Shoulder'],
@@ -7,15 +8,13 @@ const DIMS = [
   ['hip', 'Hip'],
 ];
 
-const toIn = (cm) => Math.round((cm / 2.54) * 10) / 10;
-
 // Values are stored in cm; this table renders either unit.
 export default function SizeChartTable({ sizeChart, highlightSize }) {
   const [unit, setUnit] = useState('in');
   if (!sizeChart?.length) return null;
 
   const shownDims = DIMS.filter(([key]) => sizeChart.some((r) => r[key] != null && r[key] !== ''));
-  const fmt = (v) => (v == null || v === '' ? '—' : unit === 'in' ? toIn(v) : v);
+  const fmt = (v) => (v == null || v === '' ? '—' : unit === 'in' ? cmToIn(v) : v);
 
   return (
     <div>

@@ -61,7 +61,7 @@ function assertSupportedMime(mimeType) {
   }
 }
 
-async function fetchProductImage(url) {
+async function fetchProductImage(url, log) {
   if (!url || typeof url !== 'string') {
     const err = new Error('productImageUrl is required');
     err.status = 400;
@@ -88,6 +88,11 @@ async function fetchProductImage(url) {
       err.status = 400;
       throw err;
     }
+    log?.step('fetch_product_image', {
+      source: 'data_uri',
+      mimeType: parsed.mimeType,
+      bytes: parsed.bytes.length,
+    });
     return { mimeType: parsed.mimeType === 'image/jpg' ? 'image/jpeg' : parsed.mimeType, bytes: parsed.bytes };
   }
 
@@ -100,6 +105,7 @@ async function fetchProductImage(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
+    log?.step('fetch_product_image_start', { url: url.slice(0, 120) });
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) {
       const err = new Error(`Could not fetch product image (${res.status})`);
@@ -123,6 +129,12 @@ async function fetchProductImage(url) {
       err.status = 400;
       throw err;
     }
+    log?.step('fetch_product_image', {
+      source: 'url',
+      mimeType,
+      bytes: bytes.length,
+      status: res.status,
+    });
     return { mimeType: mimeType === 'image/jpg' ? 'image/jpeg' : mimeType, bytes };
   } catch (e) {
     if (e.name === 'AbortError') {
@@ -136,14 +148,38 @@ async function fetchProductImage(url) {
   }
 }
 
-export async function generateTryOn({ personImageBase64, productImageUrl }) {
-  decodeBase64Image(personImageBase64, 'personImageBase64');
-  const product = await fetchProductImage(productImageUrl);
+function geminiFailureMeta(response) {
+  const candidate = response?.candidates?.[0];
+  const parts = candidate?.content?.parts ?? [];
+  return {
+    finishReason: candidate?.finishReason,
+    safetyRatings: candidate?.safetyRatings,
+    partCount: parts.length,
+    partTypes: parts.map((p) => (p.inlineData ? 'image' : p.text ? 'text' : 'other')),
+    textSnippet: parts
+      .filter((p) => p.text)
+      .map((p) => p.text.slice(0, 200))
+      .join(' | ') || undefined,
+  };
+}
+
+export async function generateTryOn({ personImageBase64, productImageUrl, log }) {
+  const personBytes = decodeBase64Image(personImageBase64, 'personImageBase64');
+  log?.step('validate_person_image', { bytes: personBytes.length });
+
+  const product = await fetchProductImage(productImageUrl, log);
 
   const ai = getClient();
   const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+  log?.step('gemini_request_start', {
+    model,
+    personBytes: personBytes.length,
+    productBytes: product.bytes.length,
+    productMime: product.mimeType,
+  });
 
   let response;
+  const geminiStarted = Date.now();
   try {
     response = await ai.models.generateContent({
       model,
@@ -170,8 +206,17 @@ export async function generateTryOn({ personImageBase64, productImageUrl }) {
         'Try-on generation failed. Use a clear front-facing photo and a product image on a plain background.'
     );
     err.status = e?.status === 503 ? 503 : 502;
+    err.geminiMs = Date.now() - geminiStarted;
+    err.geminiError = {
+      name: e?.name,
+      status: e?.status,
+      code: e?.code,
+    };
     throw err;
   }
+
+  const geminiMs = Date.now() - geminiStarted;
+  log?.step('gemini_request_done', { geminiMs });
 
   const parts = response?.candidates?.[0]?.content?.parts ?? [];
   const imagePart = parts.find((p) => p.inlineData?.data);
@@ -180,8 +225,16 @@ export async function generateTryOn({ personImageBase64, productImageUrl }) {
       'Try-on generation returned no image. Try a clearer photo with good lighting and a plain garment image.'
     );
     err.status = 502;
+    err.geminiMs = geminiMs;
+    err.geminiMeta = geminiFailureMeta(response);
     throw err;
   }
+
+  log?.step('parse_response', {
+    geminiMs,
+    outputMime: imagePart.inlineData.mimeType || 'image/jpeg',
+    outputBytes: Math.round((imagePart.inlineData.data.length * 3) / 4),
+  });
 
   return {
     imageBase64: imagePart.inlineData.data,

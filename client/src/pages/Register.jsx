@@ -25,7 +25,7 @@ export default function Register() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-20">
-      <h1 className="font-display text-4xl font-light mb-2">Join MIRA</h1>
+      <h1 className="font-display text-4xl font-light mb-2">Join linencut & more</h1>
       <p className="text-sm text-ink-soft mb-8">
         Save your scan once, shop your true size forever.
       </p>

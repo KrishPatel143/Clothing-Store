@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext.jsx';
 import { formatINR } from '../components/ProductCard.jsx';
-import { hasUserPhoto, clearUserPhoto } from '../scan/userPhoto.js';
+import FitProfileDisplay from '../components/FitProfileDisplay.jsx';
+import { loadUserPhoto, clearUserPhoto } from '../scan/userPhoto.js';
 
 const STATUS_TINT = {
   pending: 'text-gold',
@@ -16,21 +17,36 @@ const STATUS_TINT = {
 export default function Profile() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
-  const [photoSaved, setPhotoSaved] = useState(false);
-  const [photoCleared, setPhotoCleared] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(null);
 
   useEffect(() => {
     api('/orders/mine').then((d) => setOrders(d.orders)).catch(() => {});
   }, []);
 
   useEffect(() => {
-    hasUserPhoto().then(setPhotoSaved);
-  }, [photoCleared]);
+    let cancelled = false;
+    let url;
+
+    loadUserPhoto().then((blob) => {
+      if (cancelled) return;
+      if (blob) {
+        url = URL.createObjectURL(blob);
+        setPhotoUrl(url);
+      } else {
+        setPhotoUrl(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, []);
 
   const handleDeletePhoto = async () => {
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
     await clearUserPhoto();
-    setPhotoCleared((c) => !c);
-    setPhotoSaved(false);
+    setPhotoUrl(null);
   };
 
   const m = user?.savedMeasurements;
@@ -49,22 +65,7 @@ export default function Profile() {
           </Link>
         </div>
         {m ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-px bg-ink/10 border border-ink/10">
-            {[
-              ['Height', m.height && `${m.height} cm`],
-              ['Shoulder', m.shoulder && `${m.shoulder} cm`],
-              ['Chest', m.chest && `${m.chest} cm`],
-              ['Waist', m.waist && `${m.waist} cm`],
-              ['Hip', m.hip && `${m.hip} cm`],
-              ['Body type', m.bodyType],
-              ['Tone', m.skinTone],
-            ].map(([label, value]) => (
-              <div key={label} className="bg-ivory px-3 py-4 text-center">
-                <div className="font-display text-lg">{value || '—'}</div>
-                <div className="text-[10px] tracking-[0.16em] uppercase text-ink-soft mt-1">{label}</div>
-              </div>
-            ))}
-          </div>
+          <FitProfileDisplay profile={m} />
         ) : (
           <div className="border border-dashed border-ink/25 p-8 text-center text-ink-soft">
             <p className="mb-4">No measurements saved yet — scan once and every product will show your size.</p>
@@ -76,15 +77,24 @@ export default function Profile() {
             Measured {new Date(m.measuredAt).toLocaleDateString()}
           </p>
         )}
-        {photoSaved && (
-          <div className="mt-4 border border-ink/10 bg-parchment/40 p-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-ink-soft max-w-md">
-              A scan photo is saved on this device for virtual try-on. It is never stored on our
-              servers.
-            </p>
-            <button type="button" onClick={handleDeletePhoto} className="btn-ghost text-sm">
-              Delete my photo
-            </button>
+        {photoUrl && (
+          <div className="mt-6 border border-ink/10 bg-parchment/40 p-4">
+            <div className="flex flex-wrap items-start gap-4">
+              <img
+                src={photoUrl}
+                alt="Your body scan"
+                className="w-32 sm:w-40 aspect-[3/4] object-cover border border-ink/10 bg-ivory"
+              />
+              <div className="flex-1 min-w-[12rem] flex flex-col justify-between gap-3">
+                <p className="text-sm text-ink-soft">
+                  Your scan photo is saved on this device for virtual try-on. It is never stored
+                  on our servers.
+                </p>
+                <button type="button" onClick={handleDeletePhoto} className="btn-ghost text-sm self-start">
+                  Delete my photo
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </section>

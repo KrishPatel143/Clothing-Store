@@ -1,41 +1,15 @@
 // User scan photo — stored only in the browser (IndexedDB), never on the server.
 
-const DB_NAME = 'mira_store';
-const STORE_NAME = 'user_photo';
+import { openDB, STORES, storeOp } from './idb.js';
+
 const PHOTO_KEY = 'current';
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE_NAME)) {
-        req.result.createObjectStore(STORE_NAME);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function storeOp(mode, value) {
-  return openDB().then(
-    (db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, mode);
-        const store = tx.objectStore(STORE_NAME);
-        const req = mode === 'readwrite' ? store.put(value, PHOTO_KEY) : store.get(PHOTO_KEY);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      })
-  );
-}
-
 export async function saveUserPhoto(blob) {
-  await storeOp('readwrite', blob);
+  await storeOp(STORES.USER_PHOTO, 'readwrite', PHOTO_KEY, blob);
 }
 
 export async function loadUserPhoto() {
-  const blob = await storeOp('readonly');
+  const blob = await storeOp(STORES.USER_PHOTO, 'readonly', PHOTO_KEY);
   return blob instanceof Blob ? blob : null;
 }
 
@@ -47,8 +21,8 @@ export async function hasUserPhoto() {
 export async function clearUserPhoto() {
   const db = await openDB();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const req = tx.objectStore(STORE_NAME).delete(PHOTO_KEY);
+    const tx = db.transaction(STORES.USER_PHOTO, 'readwrite');
+    const req = tx.objectStore(STORES.USER_PHOTO).delete(PHOTO_KEY);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });

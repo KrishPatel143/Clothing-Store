@@ -3,10 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext.jsx';
 import ProductCard from '../components/ProductCard.jsx';
+import HeightInput, { validateHeightInput } from '../components/HeightInput.jsx';
+import FitProfileDisplay from '../components/FitProfileDisplay.jsx';
 import { getPoseLandmarker, getSegmenter } from '../scan/vision.js';
 import { framingFeedback, computeMeasurements } from '../scan/measure.js';
-import { classifyBodyType, sampleSkinTone, BODY_TYPE_NOTES, TONE_NOTES } from '../scan/classify.js';
+import { classifyBodyType, sampleSkinTone } from '../scan/classify.js';
 import { saveLocalMeasurements } from '../scan/fit.js';
+import { inToCm } from '../scan/units.js';
 import { saveUserPhoto, canvasToBlob, clearUserPhoto } from '../scan/userPhoto.js';
 
 const HOLD_FRAMES = 45; // ~1.5s of continuous good framing before capture
@@ -17,7 +20,8 @@ export default function ScanPage() {
 
   // intro | camera | analyzing | results | manual
   const [stage, setStage] = useState('intro');
-  const [heightCm, setHeightCm] = useState('170');
+  const [heightCm, setHeightCm] = useState(170);
+  const [heightUnit, setHeightUnit] = useState('cm');
   const [feedback, setFeedback] = useState({ ok: false, message: 'Starting camera…' });
   const [holdProgress, setHoldProgress] = useState(0);
   const [error, setError] = useState('');
@@ -96,21 +100,26 @@ export default function ScanPage() {
       }
 
       const bodyType = classifyBodyType(measurements);
-      let skinTone = null;
+      let skinSample = null;
       try {
-        skinTone = sampleSkinTone(ctx, canvas.width, canvas.height, landmarks);
+        skinSample = sampleSkinTone(ctx, canvas.width, canvas.height, landmarks);
       } catch {
         /* optional */
       }
 
-      // Only measurements leave the browser for recommendations; the photo stays in IndexedDB.
-      const profile = { ...measurements, bodyType, skinTone };
+      const profile = {
+        ...measurements,
+        bodyType,
+        skinTone: skinSample?.category ?? null,
+        skinColorHex: skinSample?.hex ?? null,
+        heightUnit,
+      };
 
       // A brief beat so the "analyzing" moment feels considered, not jumpy
       await new Promise((r) => setTimeout(r, 1600));
       finishWithProfile(profile);
     },
-    [heightCm, stopCamera] // eslint-disable-line react-hooks/exhaustive-deps
+    [heightCm, heightUnit, stopCamera] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const finishWithProfile = async (profile) => {
@@ -138,8 +147,9 @@ export default function ScanPage() {
   // ---------- live camera loop ----------
   const startCamera = async () => {
     setError('');
-    if (!Number(heightCm) || Number(heightCm) < 90 || Number(heightCm) > 230) {
-      setError('Enter your height (90–230 cm) — it is what makes the measurements real-world accurate.');
+    const heightErr = validateHeightInput(heightCm);
+    if (heightErr) {
+      setError(heightErr);
       return;
     }
     setStage('camera');
@@ -187,18 +197,34 @@ export default function ScanPage() {
   };
 
   const submitManual = () => {
+    const heightErr = validateHeightInput(heightCm);
+    if (heightErr) {
+      setError(heightErr);
+      return;
+    }
     const m = {
-      height: Number(heightCm) || undefined,
-      shoulder: Number(manual.shoulder) || undefined,
-      chest: Number(manual.chest) || undefined,
-      waist: Number(manual.waist) || undefined,
-      hip: Number(manual.hip) || undefined,
+      height: heightCm || undefined,
+      shoulder: inToCm(manual.shoulder) || undefined,
+      chest: inToCm(manual.chest) || undefined,
+      waist: inToCm(manual.waist) || undefined,
+      hip: inToCm(manual.hip) || undefined,
     };
     if (!m.chest && !m.waist && !m.hip && !m.shoulder) {
       setError('Enter at least one measurement.');
       return;
     }
-    finishWithProfile({ ...m, bodyType: classifyBodyType(m), skinTone: null });
+    finishWithProfile({
+      ...m,
+      bodyType: classifyBodyType(m),
+      skinTone: null,
+      skinColorHex: null,
+      heightUnit,
+    });
+  };
+
+  const handleHeightChange = ({ heightCm: cm, heightUnit: unit }) => {
+    setHeightCm(cm);
+    setHeightUnit(unit);
   };
 
   const handleSave = async () => {
@@ -244,14 +270,11 @@ export default function ScanPage() {
             </ul>
 
             <div className="rise rise-2 mt-8 text-left">
-              <label className="label-caps text-ivory/60">Your height (cm) — our measuring tape</label>
-              <input
-                type="number"
-                value={heightCm}
-                onChange={(e) => setHeightCm(e.target.value)}
-                className="w-full bg-transparent border border-ivory/30 px-4 py-3 text-lg focus:outline-none focus:border-gold"
-                min="90"
-                max="230"
+              <HeightInput
+                valueCm={heightCm}
+                unit={heightUnit}
+                onChange={handleHeightChange}
+                variant="dark"
               />
             </div>
 
@@ -353,7 +376,7 @@ export default function ScanPage() {
         <div className="min-h-full flex items-center justify-center px-6 py-16">
           <div className="max-w-md w-full">
             <h1 className="font-display text-3xl font-light mb-2">Enter your measurements</h1>
-            <p className="text-sm text-ivory/50 mb-8">All in centimeters — a soft tape measure works best.</p>
+            <p className="text-sm text-ivory/50 mb-8">Body measurements in inches — a soft tape measure works best.</p>
             <div className="grid grid-cols-2 gap-4">
               {[
                 ['shoulder', 'Shoulder width'],
@@ -362,9 +385,10 @@ export default function ScanPage() {
                 ['hip', 'Hip around'],
               ].map(([key, label]) => (
                 <div key={key}>
-                  <label className="label-caps text-ivory/60">{label}</label>
+                  <label className="label-caps text-ivory/60">{label} (in)</label>
                   <input
                     type="number"
+                    step="0.1"
                     value={manual[key]}
                     onChange={(e) => setManual((m) => ({ ...m, [key]: e.target.value }))}
                     className="w-full bg-transparent border border-ivory/30 px-3 py-2.5 focus:outline-none focus:border-gold"
@@ -372,12 +396,12 @@ export default function ScanPage() {
                 </div>
               ))}
               <div className="col-span-2">
-                <label className="label-caps text-ivory/60">Height (cm)</label>
-                <input
-                  type="number"
-                  value={heightCm}
-                  onChange={(e) => setHeightCm(e.target.value)}
-                  className="w-full bg-transparent border border-ivory/30 px-3 py-2.5 focus:outline-none focus:border-gold"
+                <HeightInput
+                  valueCm={heightCm}
+                  unit={heightUnit}
+                  onChange={handleHeightChange}
+                  variant="dark"
+                  label="Height"
                 />
               </div>
             </div>
@@ -405,40 +429,7 @@ export default function ScanPage() {
               These are careful estimates — not tailor-grade. You can always adjust sizes manually.
             </p>
 
-            <div className="rise rise-2 grid grid-cols-2 sm:grid-cols-5 gap-px bg-ink/10 border border-ink/10 mt-8">
-              {[
-                ['Height', result.height, 'cm'],
-                ['Shoulder', result.shoulder, 'cm'],
-                ['Chest', result.chest, 'cm'],
-                ['Waist', result.waist, 'cm'],
-                ['Hip', result.hip, 'cm'],
-              ].map(([label, value, unit]) => (
-                <div key={label} className="bg-ivory px-4 py-5 text-center">
-                  <div className="font-display text-3xl font-light">
-                    {value ?? '—'}
-                    <span className="text-sm text-ink-soft ml-1">{value ? unit : ''}</span>
-                  </div>
-                  <div className="text-[10px] tracking-[0.18em] uppercase text-ink-soft mt-1">{label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="rise rise-3 grid sm:grid-cols-2 gap-4 mt-4">
-              {result.bodyType && (
-                <div className="border border-ink/10 bg-parchment/60 p-5">
-                  <div className="label-caps text-clay">Body type</div>
-                  <div className="font-display text-2xl">{result.bodyType}</div>
-                  <p className="text-sm text-ink-soft mt-1">{BODY_TYPE_NOTES[result.bodyType]}</p>
-                </div>
-              )}
-              {result.skinTone && (
-                <div className="border border-ink/10 bg-parchment/60 p-5">
-                  <div className="label-caps text-clay">Tone palette</div>
-                  <div className="font-display text-2xl">{result.skinTone}</div>
-                  <p className="text-sm text-ink-soft mt-1">{TONE_NOTES[result.skinTone]}</p>
-                </div>
-              )}
-            </div>
+            <FitProfileDisplay profile={result} className="rise rise-2 mt-8" />
 
             <div className="flex flex-wrap gap-3 mt-8">
               <button onClick={handleSave} disabled={saved} className="btn-primary">

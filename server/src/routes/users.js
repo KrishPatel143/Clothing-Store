@@ -6,9 +6,18 @@ router.use(requireAuth);
 
 // Saved measurements (only derived numbers are ever stored — no images)
 router.put('/measurements', async (req, res) => {
-  const { height, shoulder, chest, waist, hip, bodyType, skinTone } = req.body || {};
+  const { height, shoulder, chest, waist, hip, bodyType, skinTone, skinColorHex, heightUnit } =
+    req.body || {};
   req.user.savedMeasurements = {
-    height, shoulder, chest, waist, hip, bodyType, skinTone,
+    height,
+    shoulder,
+    chest,
+    waist,
+    hip,
+    bodyType,
+    skinTone,
+    skinColorHex,
+    heightUnit,
     measuredAt: new Date(),
   };
   await req.user.save();

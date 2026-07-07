@@ -13,6 +13,8 @@ const measurementsSchema = new mongoose.Schema(
       enum: ['Rectangle', 'Hourglass', 'Pear', 'Inverted Triangle', 'Apple', 'Athletic'],
     },
     skinTone: { type: String, enum: ['Fair', 'Wheatish', 'Medium', 'Deep'] },
+    skinColorHex: String,
+    heightUnit: { type: String, enum: ['cm', 'ft'] },
     measuredAt: Date,
   },
   { _id: false }

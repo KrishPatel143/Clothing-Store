@@ -28,6 +28,11 @@ export const BODY_TYPE_NOTES = {
 // Samples a patch just below the nose landmark (chin/upper-lip area), averages
 // it, then classifies by ITA (Individual Typology Angle) — a standard
 // dermatology metric that's more lighting-robust than raw RGB.
+export function rgbToHex(r, g, b) {
+  const toHex = (c) => Math.round(c).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
+}
+
 export function sampleSkinTone(ctx, frameW, frameH, landmarks) {
   const nose = landmarks[LM.NOSE];
   const leftEye = landmarks[LM.LEFT_EYE];
@@ -53,7 +58,16 @@ export function sampleSkinTone(ctx, frameW, frameH, landmarks) {
     n++;
   }
   if (!n) return null;
-  return classifyToneITA(rSum / n, gSum / n, bSum / n);
+
+  const avgR = rSum / n;
+  const avgG = gSum / n;
+  const avgB = bSum / n;
+  const category = classifyToneITA(avgR, avgG, avgB);
+  return {
+    category,
+    rgb: [Math.round(avgR), Math.round(avgG), Math.round(avgB)],
+    hex: rgbToHex(avgR, avgG, avgB),
+  };
 }
 
 function srgbToLinear(c) {

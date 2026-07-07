@@ -24,15 +24,21 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   if (!res.ok) {
     const err = new Error(data?.message || `Request failed (${res.status})`);
     err.status = res.status;
+    err.requestId = data?.requestId;
+    err.stage = data?.stage;
+    err.steps = data?.steps;
+    err.elapsedMs = data?.elapsedMs;
+    err.geminiMs = data?.geminiMs;
+    err.geminiMeta = data?.geminiMeta;
     throw err;
   }
   return data;
 }
 
-export async function tryOn({ personImageBase64, productImageUrl }) {
+export async function tryOn({ personImageBase64, productImageUrl, requestId }) {
   return api('/tryon', {
     method: 'POST',
-    body: { personImageBase64, productImageUrl },
+    body: { personImageBase64, productImageUrl, requestId },
     auth: false,
   });
 }
