@@ -6,7 +6,6 @@ import ProductCard from '../components/ProductCard.jsx';
 const CATEGORIES = [
   { slug: 'men', label: 'Men', tint: 'bg-[#3b5b7c]' },
   { slug: 'women', label: 'Women', tint: 'bg-[#8d5b4c]' },
-  { slug: 'kids', label: 'Kids', tint: 'bg-[#7d8471]' },
 ];
 
 export default function Home() {
@@ -72,7 +71,7 @@ export default function Home() {
 
       {/* Category tiles */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-        <div className="grid sm:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 gap-4">
           {CATEGORIES.map((c) => (
             <Link
               key={c.slug}

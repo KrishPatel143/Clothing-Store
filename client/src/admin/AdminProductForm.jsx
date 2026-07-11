@@ -75,6 +75,11 @@ export default function AdminProductForm() {
     return root?.children || [];
   }, [cats, form.category]);
 
+  const categoryOptions = useMemo(
+    () => (cats.tree || []).filter((r) => r.slug !== 'kids'),
+    [cats]
+  );
+
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   const setChartCell = (idx, key, value) => {
@@ -162,7 +167,7 @@ export default function AdminProductForm() {
               }}
             >
               <option value="">Select…</option>
-              {cats.tree.map((r) => (
+              {categoryOptions.map((r) => (
                 <option key={r._id} value={r._id}>{r.name}</option>
               ))}
             </select>

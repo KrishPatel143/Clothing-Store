@@ -22,7 +22,6 @@ export default function Navbar() {
         <nav className="hidden md:flex items-center gap-7">
           <NavLink to="/shop?category=men" className={navLink}>Men</NavLink>
           <NavLink to="/shop?category=women" className={navLink}>Women</NavLink>
-          <NavLink to="/shop?category=kids" className={navLink}>Kids</NavLink>
           <NavLink to="/shop" className={navLink} end>All</NavLink>
         </nav>
 

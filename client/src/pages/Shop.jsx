@@ -11,7 +11,7 @@ export default function Shop() {
   const [tree, setTree] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const category = params.get('category') || '';
+  const category = params.get('category') === 'kids' ? '' : (params.get('category') || '');
   const subCategory = params.get('subCategory') || '';
   const size = params.get('size') || '';
   const maxPrice = params.get('maxPrice') || '';
@@ -20,7 +20,9 @@ export default function Shop() {
   const page = Number(params.get('page') || 1);
 
   useEffect(() => {
-    api('/categories', { auth: false }).then((d) => setTree(d.tree)).catch(() => {});
+    api('/categories', { auth: false })
+      .then((d) => setTree((d.tree || []).filter((r) => r.slug !== 'kids')))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

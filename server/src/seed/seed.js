@@ -31,13 +31,6 @@ const bottomChart = (base) =>
     hip: base + 14 + i * 6,
   }));
 
-const kidsChart = [
-  { size: 'XS', shoulder: 30, chest: 62, waist: 56, hip: 64 },
-  { size: 'S', shoulder: 32, chest: 66, waist: 59, hip: 68 },
-  { size: 'M', shoulder: 34, chest: 70, waist: 62, hip: 72 },
-  { size: 'L', shoulder: 36, chest: 74, waist: 65, hip: 76 },
-];
-
 // Solid-colour placeholder images (SVG data URIs) for products without real photos.
 // Virtual try-on requires JPEG/PNG garment photos — a few products below use real URLs.
 const img = (label, bg, fg = '#ffffff') => {
@@ -69,7 +62,6 @@ async function run() {
 
   const men = await mk('Men');
   const women = await mk('Women');
-  const kids = await mk('Kids');
   const menShirts = await mk('Shirts', men);
   const menTshirts = await mk('T-Shirts', men);
   const menTrousers = await mk('Trousers', men);
@@ -78,8 +70,6 @@ async function run() {
   const womenTops = await mk('Tops', women);
   const womenEthnic = await mk('Ethnic Wear', women);
   const womenJeans = await mk('Jeans', women);
-  const kidsTees = await mk('T-Shirts', kids);
-  const kidsDresses = await mk('Dresses', kids);
 
   console.log('[seed] creating products…');
   const P = (data) => Product.create(data);
@@ -153,20 +143,6 @@ async function run() {
       images: [img('Slim Jeans', '#33415c')], colors: ['Indigo', 'Washed Black'],
       suitedBodyTypes: ['Hourglass', 'Pear', 'Athletic'], suitedSkinTones: [],
       sizeChart: bottomChart(64),
-    }),
-    P({
-      name: 'Dino Graphic Tee', description: 'Soft cotton tee with a friendly dino print. Built to survive the playground.',
-      category: kids._id, subCategory: kidsTees._id, price: 499, stock: 60,
-      images: [img('Dino Tee', '#3a7d44')], colors: ['Green', 'Yellow'],
-      suitedBodyTypes: [], suitedSkinTones: [],
-      sizeChart: kidsChart,
-    }),
-    P({
-      name: 'Twirl Party Dress', description: 'Tulle-layered party dress made for maximum twirl.',
-      category: kids._id, subCategory: kidsDresses._id, price: 1299, stock: 20,
-      images: [img('Party Dress', '#b56576')], colors: ['Pink', 'Lilac'],
-      suitedBodyTypes: [], suitedSkinTones: [],
-      sizeChart: kidsChart,
     }),
   ]);
 
