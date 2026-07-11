@@ -22,7 +22,6 @@ app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/recommendations', recommendationRoutes);
-app.use('/api/seed', seedRoutes);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
