@@ -16,6 +16,28 @@ import {
 } from '../scan/tryOnTrace.js';
 import { loadTryOnPreview, saveTryOnPreview } from '../scan/tryOnCache.js';
 
+/** Sarees and similar pieces are sold without body sizing. */
+function productHasSizing(product) {
+  if (!product) return false;
+  const text = [
+    product.name,
+    product.subCategory?.name,
+    product.subCategory?.slug,
+    product.category?.name,
+    product.category?.slug,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (/\b(saree|sari|dupatta|stole|shawl|scarf)\b/.test(text)) return false;
+  if (!product.sizeChart?.length) return false;
+  const bodySizes = product.sizeChart.filter((r) => {
+    const s = String(r.size || '').toLowerCase().trim();
+    return s && !/^(os|one\s*size|free\s*size|freesize|u)$/.test(s);
+  });
+  return bodySizes.length > 0;
+}
+
 export default function ProductDetail() {
   const { id } = useParams();
   const location = useLocation();
@@ -63,15 +85,24 @@ export default function ProductDetail() {
     [user]
   );
 
+  const hasSizing = useMemo(() => productHasSizing(product), [product]);
+
   const fit = useMemo(() => {
-    if (!product || !measurements) return null;
+    if (!product || !hasSizing || !measurements) return null;
     return bestSizeFromChart(measurements, product.sizeChart);
-  }, [product, measurements]);
+  }, [product, hasSizing, measurements]);
 
   useEffect(() => {
+    if (!hasSizing) {
+      setSize('One Size');
+      return;
+    }
     if (!size && fit?.size) setSize(fit.size);
+  }, [fit, hasSizing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     if (product && !color && product.colors?.length) setColor(product.colors[0]);
-  }, [fit, product]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [product]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false;
@@ -233,24 +264,26 @@ export default function ProductDetail() {
         <p className="text-2xl mt-3">{formatINR(product.price)}</p>
         <p className="text-ink-soft mt-5 leading-relaxed">{product.description}</p>
 
-        {/* Fit callout */}
-        <div className="mt-6 border border-clay/40 bg-clay/5 p-4">
-          {fit ? (
-            <p className="text-sm">
-              <span className="text-clay font-medium">Based on your scan,</span> size{' '}
-              <span className="font-display text-lg">{fit.size}</span> should fit you best
-              <span className="text-ink-soft"> ({fit.confidence}% fit confidence)</span>.
-            </p>
-          ) : (
-            <p className="text-sm text-ink-soft">
-              Not sure of your size?{' '}
-              <Link to="/scan" className="text-clay underline underline-offset-4 hover:text-clay-deep">
-                Scan yourself in 20 seconds
-              </Link>{' '}
-              and we'll pick it for you.
-            </p>
-          )}
-        </div>
+        {/* Fit callout — only for sized garments */}
+        {hasSizing && (
+          <div className="mt-6 border border-clay/40 bg-clay/5 p-4">
+            {fit ? (
+              <p className="text-sm">
+                <span className="text-clay font-medium">Based on your scan,</span> size{' '}
+                <span className="font-display text-lg">{fit.size}</span> should fit you best
+                <span className="text-ink-soft"> ({fit.confidence}% fit confidence)</span>.
+              </p>
+            ) : (
+              <p className="text-sm text-ink-soft">
+                Not sure of your size?{' '}
+                <Link to="/scan" className="text-clay underline underline-offset-4 hover:text-clay-deep">
+                  Scan yourself in 20 seconds
+                </Link>{' '}
+                and we'll pick it for you.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Color */}
         {product.colors?.length > 0 && (
@@ -273,42 +306,48 @@ export default function ProductDetail() {
         )}
 
         {/* Sizes */}
-        <div className="mt-6">
-          <div className="label-caps">Size {fit && <span className="text-clay normal-case">· we picked {fit.size} for you</span>}</div>
-          <div className="flex flex-wrap gap-2">
-            {product.sizeChart?.map((row) => (
-              <button
-                key={row.size}
-                onClick={() => setSize(row.size)}
-                className={`w-12 h-11 text-sm border transition-colors relative ${
-                  size === row.size ? 'bg-ink text-ivory border-ink' : 'border-ink/20 hover:border-ink'
-                }`}
-              >
-                {row.size}
-                {fit?.size === row.size && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-clay" />
-                )}
-              </button>
-            ))}
+        {hasSizing && (
+          <div className="mt-6">
+            <div className="label-caps">Size {fit && <span className="text-clay normal-case">· we picked {fit.size} for you</span>}</div>
+            <div className="flex flex-wrap gap-2">
+              {product.sizeChart?.map((row) => (
+                <button
+                  key={row.size}
+                  onClick={() => setSize(row.size)}
+                  className={`w-12 h-11 text-sm border transition-colors relative ${
+                    size === row.size ? 'bg-ink text-ivory border-ink' : 'border-ink/20 hover:border-ink'
+                  }`}
+                >
+                  {row.size}
+                  {fit?.size === row.size && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-clay" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="mt-8 flex gap-3">
           <button onClick={handleAdd} disabled={!size || product.stock === 0} className="btn-primary flex-1">
             {product.stock === 0 ? 'Out of stock' : added ? 'Added ✓' : 'Add to cart'}
           </button>
-          <Link to="/scan" className="btn-ghost whitespace-nowrap">Fits me?</Link>
+          {hasSizing && (
+            <Link to="/scan" className="btn-ghost whitespace-nowrap">Fits me?</Link>
+          )}
         </div>
         {product.stock > 0 && product.stock <= 5 && (
           <p className="text-xs text-clay mt-2">Only {product.stock} left</p>
         )}
 
-        <div className="mt-10">
-          <SizeChartTable sizeChart={product.sizeChart} highlightSize={fit?.size} />
-          <p className="text-[11px] text-ink-soft/70 mt-2">
-            Recommendations are estimates from your scan — not tailor-grade. When between sizes, size up.
-          </p>
-        </div>
+        {hasSizing && (
+          <div className="mt-10">
+            <SizeChartTable sizeChart={product.sizeChart} highlightSize={fit?.size} />
+            <p className="text-[11px] text-ink-soft/70 mt-2">
+              Recommendations are estimates from your scan — not tailor-grade. When between sizes, size up.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

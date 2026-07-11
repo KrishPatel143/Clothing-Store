@@ -37,7 +37,8 @@ export default function CartPage() {
                     {item.product.name}
                   </Link>
                   <p className="text-xs text-ink-soft mt-1 uppercase tracking-wide">
-                    Size {item.size}{item.color ? ` · ${item.color}` : ''}
+                    {item.size === 'One Size' ? 'One size' : `Size ${item.size}`}
+                    {item.color ? ` · ${item.color}` : ''}
                   </p>
                 </div>
                 <div className="font-medium">{formatINR(item.product.price * item.quantity)}</div>
