@@ -7,6 +7,7 @@ const sizeRowSchema = new mongoose.Schema(
     size: { type: String, required: true }, // XS, S, M, L, XL, XXL
     shoulder: Number,
     chest: Number,
+    waist: Number,
     hip: Number,
   },
   { _id: false }

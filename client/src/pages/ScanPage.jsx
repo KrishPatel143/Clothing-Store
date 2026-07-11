@@ -20,8 +20,7 @@ export default function ScanPage() {
 
   // intro | camera | analyzing | results | manual
   const [stage, setStage] = useState('intro');
-  const [heightCm, setHeightCm] = useState(170);
-  const [heightUnit, setHeightUnit] = useState('cm');
+  const [heightCm, setHeightCm] = useState('170');
   const [feedback, setFeedback] = useState({ ok: false, message: 'Starting camera…' });
   const [holdProgress, setHoldProgress] = useState(0);
   const [error, setError] = useState('');
@@ -107,19 +106,14 @@ export default function ScanPage() {
         /* optional */
       }
 
-      const profile = {
-        ...measurements,
-        bodyType,
-        skinTone: skinSample?.category ?? null,
-        skinColorHex: skinSample?.hex ?? null,
-        heightUnit,
-      };
+      // The frame stays here; only these numbers ever leave the browser.
+      const profile = { ...measurements, bodyType, skinTone };
 
       // A brief beat so the "analyzing" moment feels considered, not jumpy
       await new Promise((r) => setTimeout(r, 1600));
       finishWithProfile(profile);
     },
-    [heightCm, heightUnit, stopCamera] // eslint-disable-line react-hooks/exhaustive-deps
+    [heightCm, stopCamera] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const finishWithProfile = async (profile) => {
@@ -134,6 +128,7 @@ export default function ScanPage() {
           measurements: profile,
           bodyType: profile.bodyType,
           skinTone: profile.skinTone,
+          category: profile.shopFor || undefined,
           limit: 8,
         },
         auth: false,
@@ -147,9 +142,8 @@ export default function ScanPage() {
   // ---------- live camera loop ----------
   const startCamera = async () => {
     setError('');
-    const heightErr = validateHeightInput(heightCm);
-    if (heightErr) {
-      setError(heightErr);
+    if (!Number(heightCm) || Number(heightCm) < 90 || Number(heightCm) > 230) {
+      setError('Enter your height (90–230 cm) — it is what makes the measurements real-world accurate.');
       return;
     }
     setStage('camera');
@@ -197,11 +191,6 @@ export default function ScanPage() {
   };
 
   const submitManual = () => {
-    const heightErr = validateHeightInput(heightCm);
-    if (heightErr) {
-      setError(heightErr);
-      return;
-    }
     const m = {
       height: heightCm || undefined,
       shoulder: inToCm(manual.shoulder) || undefined,
@@ -213,18 +202,7 @@ export default function ScanPage() {
       setError('Enter at least one measurement.');
       return;
     }
-    finishWithProfile({
-      ...m,
-      bodyType: classifyBodyType(m),
-      skinTone: null,
-      skinColorHex: null,
-      heightUnit,
-    });
-  };
-
-  const handleHeightChange = ({ heightCm: cm, heightUnit: unit }) => {
-    setHeightCm(cm);
-    setHeightUnit(unit);
+    finishWithProfile({ ...m, bodyType: classifyBodyType(m), skinTone: null });
   };
 
   const handleSave = async () => {
@@ -270,11 +248,14 @@ export default function ScanPage() {
             </ul>
 
             <div className="rise rise-2 mt-8 text-left">
-              <HeightInput
-                valueCm={heightCm}
-                unit={heightUnit}
-                onChange={handleHeightChange}
-                variant="dark"
+              <label className="label-caps text-ivory/60">Your height (cm) — our measuring tape</label>
+              <input
+                type="number"
+                value={heightCm}
+                onChange={(e) => setHeightCm(e.target.value)}
+                className="w-full bg-transparent border border-ivory/30 px-4 py-3 text-lg focus:outline-none focus:border-gold"
+                min="90"
+                max="230"
               />
             </div>
 
@@ -376,7 +357,7 @@ export default function ScanPage() {
         <div className="min-h-full flex items-center justify-center px-6 py-16">
           <div className="max-w-md w-full">
             <h1 className="font-display text-3xl font-light mb-2">Enter your measurements</h1>
-            <p className="text-sm text-ivory/50 mb-8">Body measurements in inches — a soft tape measure works best.</p>
+            <p className="text-sm text-ivory/50 mb-8">All in centimeters — a soft tape measure works best.</p>
             <div className="grid grid-cols-2 gap-4">
               {[
                 ['shoulder', 'Shoulder width'],
@@ -429,7 +410,40 @@ export default function ScanPage() {
               These are careful estimates — not tailor-grade. You can always adjust sizes manually.
             </p>
 
-            <FitProfileDisplay profile={result} className="rise rise-2 mt-8" />
+            <div className="rise rise-2 grid grid-cols-2 sm:grid-cols-5 gap-px bg-ink/10 border border-ink/10 mt-8">
+              {[
+                ['Height', result.height, 'cm'],
+                ['Shoulder', result.shoulder, 'cm'],
+                ['Chest', result.chest, 'cm'],
+                ['Waist', result.waist, 'cm'],
+                ['Hip', result.hip, 'cm'],
+              ].map(([label, value, unit]) => (
+                <div key={label} className="bg-ivory px-4 py-5 text-center">
+                  <div className="font-display text-3xl font-light">
+                    {value ?? '—'}
+                    <span className="text-sm text-ink-soft ml-1">{value ? unit : ''}</span>
+                  </div>
+                  <div className="text-[10px] tracking-[0.18em] uppercase text-ink-soft mt-1">{label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="rise rise-3 grid sm:grid-cols-2 gap-4 mt-4">
+              {result.bodyType && (
+                <div className="border border-ink/10 bg-parchment/60 p-5">
+                  <div className="label-caps text-clay">Body type</div>
+                  <div className="font-display text-2xl">{result.bodyType}</div>
+                  <p className="text-sm text-ink-soft mt-1">{BODY_TYPE_NOTES[result.bodyType]}</p>
+                </div>
+              )}
+              {result.skinTone && (
+                <div className="border border-ink/10 bg-parchment/60 p-5">
+                  <div className="label-caps text-clay">Tone palette</div>
+                  <div className="font-display text-2xl">{result.skinTone}</div>
+                  <p className="text-sm text-ink-soft mt-1">{TONE_NOTES[result.skinTone]}</p>
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-wrap gap-3 mt-8">
               <button onClick={handleSave} disabled={saved} className="btn-primary">
