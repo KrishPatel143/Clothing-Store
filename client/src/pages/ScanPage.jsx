@@ -14,12 +14,18 @@ import { saveUserPhoto, canvasToBlob, clearUserPhoto } from '../scan/userPhoto.j
 
 const HOLD_FRAMES = 45; // ~1.5s of continuous good framing before capture
 
+const SHOP_CATEGORIES = [
+  { slug: 'men', label: 'Men' },
+  { slug: 'women', label: 'Women' },
+];
+
 export default function ScanPage() {
   const navigate = useNavigate();
   const { user, saveMeasurements } = useAuth();
 
   // intro | camera | analyzing | results | manual
   const [stage, setStage] = useState('intro');
+  const [category, setCategory] = useState(''); // 'men' | 'women'
   const [heightCm, setHeightCm] = useState(170);
   const [heightUnit, setHeightUnit] = useState('cm');
   const [feedback, setFeedback] = useState({ ok: false, message: 'Starting camera…' });
@@ -113,13 +119,14 @@ export default function ScanPage() {
         skinTone: skinSample?.category ?? null,
         skinColorHex: skinSample?.hex ?? null,
         heightUnit,
+        category,
       };
 
       // A brief beat so the "analyzing" moment feels considered, not jumpy
       await new Promise((r) => setTimeout(r, 1600));
       finishWithProfile(profile);
     },
-    [heightCm, heightUnit, stopCamera] // eslint-disable-line react-hooks/exhaustive-deps
+    [heightCm, heightUnit, category, stopCamera] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const finishWithProfile = async (profile) => {
@@ -134,6 +141,7 @@ export default function ScanPage() {
           measurements: profile,
           bodyType: profile.bodyType,
           skinTone: profile.skinTone,
+          category: profile.category || undefined,
           limit: 8,
         },
         auth: false,
@@ -147,6 +155,10 @@ export default function ScanPage() {
   // ---------- live camera loop ----------
   const startCamera = async () => {
     setError('');
+    if (!category) {
+      setError('Choose Men or Women so we can match the right collection.');
+      return;
+    }
     const heightErr = validateHeightInput(heightCm);
     if (heightErr) {
       setError(heightErr);
@@ -197,6 +209,11 @@ export default function ScanPage() {
   };
 
   const submitManual = () => {
+    setError('');
+    if (!category) {
+      setError('Choose Men or Women so we can match the right collection.');
+      return;
+    }
     const heightErr = validateHeightInput(heightCm);
     if (heightErr) {
       setError(heightErr);
@@ -219,6 +236,7 @@ export default function ScanPage() {
       skinTone: null,
       skinColorHex: null,
       heightUnit,
+      category,
     });
   };
 
@@ -269,7 +287,29 @@ export default function ScanPage() {
               <li className="flex gap-3"><span className="text-gold">—</span> Fitted clothing and good lighting help accuracy</li>
             </ul>
 
-            <div className="rise rise-2 mt-8 text-left">
+            <div className="rise rise-2 mt-8 text-left space-y-5">
+              <div>
+                <p className="label-caps text-ivory/60 mb-2">Shopping for</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {SHOP_CATEGORIES.map((c) => (
+                    <button
+                      key={c.slug}
+                      type="button"
+                      onClick={() => {
+                        setCategory(c.slug);
+                        setError('');
+                      }}
+                      className={`px-4 py-3 text-[13px] tracking-[0.16em] uppercase border transition-colors ${
+                        category === c.slug
+                          ? 'border-gold bg-gold/15 text-gold'
+                          : 'border-ivory/25 text-ivory/70 hover:border-ivory/50 hover:text-ivory'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <HeightInput
                 valueCm={heightCm}
                 unit={heightUnit}
@@ -327,7 +367,12 @@ export default function ScanPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(33,29,25,0.75)_100%)] pointer-events-none" />
 
           {/* Feedback pill */}
-          <div className="absolute top-8 inset-x-0 flex justify-center px-6">
+          <div className="absolute top-8 inset-x-0 flex flex-col items-center gap-2 px-6">
+            {category && (
+              <p className="text-[11px] tracking-[0.2em] uppercase text-ivory/50">
+                Shopping {category === 'women' ? 'Women' : 'Men'}
+              </p>
+            )}
             <div
               className={`px-6 py-3 rounded-full backdrop-blur-md text-sm tracking-wide transition-colors duration-300 ${
                 feedback.ok ? 'bg-[#9db787]/90 text-ink' : 'bg-ink/70 text-ivory'
@@ -377,6 +422,28 @@ export default function ScanPage() {
           <div className="max-w-md w-full">
             <h1 className="font-display text-3xl font-light mb-2">Enter your measurements</h1>
             <p className="text-sm text-ivory/50 mb-8">Body measurements in inches — a soft tape measure works best.</p>
+            <div className="mb-6">
+              <p className="label-caps text-ivory/60 mb-2">Shopping for</p>
+              <div className="grid grid-cols-2 gap-2">
+                {SHOP_CATEGORIES.map((c) => (
+                  <button
+                    key={c.slug}
+                    type="button"
+                    onClick={() => {
+                      setCategory(c.slug);
+                      setError('');
+                    }}
+                    className={`px-4 py-3 text-[13px] tracking-[0.16em] uppercase border transition-colors ${
+                      category === c.slug
+                        ? 'border-gold bg-gold/15 text-gold'
+                        : 'border-ivory/25 text-ivory/70 hover:border-ivory/50 hover:text-ivory'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               {[
                 ['shoulder', 'Shoulder width'],
@@ -465,8 +532,17 @@ export default function ScanPage() {
             {/* Recommendations */}
             <div className="mt-16">
               <div className="flex items-end justify-between mb-6">
-                <h2 className="font-display text-3xl font-light">Made-for-you matches</h2>
-                <Link to="/shop" className="text-[12px] tracking-[0.16em] uppercase text-clay hover:text-clay-deep">
+                <h2 className="font-display text-3xl font-light">
+                  {result.category === 'women'
+                    ? 'Women matches for you'
+                    : result.category === 'men'
+                      ? 'Men matches for you'
+                      : 'Made-for-you matches'}
+                </h2>
+                <Link
+                  to={result.category ? `/shop?category=${result.category}` : '/shop'}
+                  className="text-[12px] tracking-[0.16em] uppercase text-clay hover:text-clay-deep"
+                >
                   Browse all →
                 </Link>
               </div>
