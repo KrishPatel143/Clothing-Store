@@ -141,6 +141,7 @@ export default function ScanPage() {
           measurements: profile,
           bodyType: profile.bodyType,
           skinTone: profile.skinTone,
+          skinColorHex: profile.skinColorHex,
           category: profile.category || undefined,
           limit: 8,
         },

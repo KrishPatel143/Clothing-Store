@@ -1,17 +1,29 @@
 import { Router } from 'express';
 import Product from '../models/Product.js';
 import Category from '../models/Category.js';
-import { rankProducts } from '../utils/sizeMatcher.js';
+import { buildScanRecommendations, isSareeProduct } from '../utils/sizeMatcher.js';
 
 const router = Router();
 
+const SAREE_TEXT = /\b(saree|sari)\b/i;
+
 // POST /api/recommendations
 // Body: { measurements: { shoulder, chest, waist, hip, height }, bodyType,
-//         skinTone, category (slug, optional), limit }
+//         skinTone, skinColorHex, category (slug, optional), limit }
 // Public so guests can use the scan without an account; only numeric
 // measurements arrive here — never images.
+//
+// Women scans: up to 2 colour-matched sarees (one-size, any body) + other
+// sized garments. Men / unscoped: sized garments only.
 router.post('/', async (req, res) => {
-  const { measurements, bodyType, skinTone, category, limit = 12 } = req.body || {};
+  const {
+    measurements,
+    bodyType,
+    skinTone,
+    skinColorHex,
+    category,
+    limit = 12,
+  } = req.body || {};
   if (
     !measurements ||
     !['shoulder', 'chest', 'waist', 'hip'].some((k) => Number(measurements[k]) > 0)
@@ -19,21 +31,78 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'At least one body measurement is required' });
   }
 
-  const filter = { stock: { $gt: 0 }, 'sizeChart.0': { $exists: true } };
+  let rootCat = null;
   if (category) {
-    const cat = await Category.findOne({ slug: category });
-    if (cat) filter.$or = [{ category: cat._id }, { subCategory: cat._id }];
+    rootCat = await Category.findOne({ slug: category });
   }
 
-  const products = await Product.find(filter)
+  const categoryClause = rootCat
+    ? { $or: [{ category: rootCat._id }, { subCategory: rootCat._id }] }
+    : null;
+
+  // Sized garments (fit-matched). Exclude bare one-size catalogues from this pass.
+  const garmentFilter = {
+    stock: { $gt: 0 },
+    'sizeChart.0': { $exists: true },
+    ...(categoryClause || {}),
+  };
+
+  const garments = await Product.find(garmentFilter)
     .populate('category subCategory', 'name slug')
     .limit(300)
     .lean();
 
-  const ranked = rankProducts(measurements, products, { bodyType, skinTone }).slice(
-    0,
-    Math.min(48, Number(limit))
-  );
+  // Women: also pull sarees even when they have no size chart — matched by colour/tone.
+  let sarees = [];
+  if (category === 'women' && rootCat) {
+    const sareeSubs = await Category.find({
+      parentCategory: rootCat._id,
+      $or: [{ name: SAREE_TEXT }, { slug: SAREE_TEXT }],
+    }).select('_id');
+
+    const sareeFilter = {
+      stock: { $gt: 0 },
+      $and: [
+        {
+          $or: [
+            { category: rootCat._id },
+            { subCategory: rootCat._id },
+            ...(sareeSubs.length ? [{ subCategory: { $in: sareeSubs.map((c) => c._id) } }] : []),
+          ],
+        },
+        {
+          $or: [
+            { name: SAREE_TEXT },
+            { description: SAREE_TEXT },
+            ...(sareeSubs.length ? [{ subCategory: { $in: sareeSubs.map((c) => c._id) } }] : []),
+          ],
+        },
+      ],
+    };
+
+    sarees = await Product.find(sareeFilter)
+      .populate('category subCategory', 'name slug')
+      .limit(80)
+      .lean();
+
+    // Also catch sarees that slipped into the sized women catalogue under ethnic names
+    for (const p of garments) {
+      if (isSareeProduct(p) && !sarees.some((s) => String(s._id) === String(p._id))) {
+        sarees.push(p);
+      }
+    }
+  }
+
+  const ranked = buildScanRecommendations({
+    measurements,
+    garments,
+    sarees,
+    bodyType,
+    skinTone,
+    skinColorHex,
+    category,
+    limit,
+  });
 
   // Analytics: count how often each product gets recommended
   const ids = ranked.map((r) => r.product._id);

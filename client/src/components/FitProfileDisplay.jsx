@@ -1,37 +1,31 @@
 import { BODY_TYPE_NOTES, TONE_NOTES } from '../scan/classify.js';
 import { formatHeight, formatIn } from '../scan/units.js';
 
-const MEASURE_ICONS = {
-  shoulder: (
-    <svg viewBox="0 0 24 24" className="w-5 h-5 text-clay/70" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" strokeLinecap="round" />
-    </svg>
-  ),
-  chest: (
-    <svg viewBox="0 0 24 24" className="w-5 h-5 text-clay/70" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <ellipse cx="12" cy="12" rx="8" ry="5" />
-    </svg>
-  ),
-  waist: (
-    <svg viewBox="0 0 24 24" className="w-5 h-5 text-clay/70" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M6 12c0-3 2.5-5 6-5s6 2 6 5" strokeLinecap="round" />
-      <path d="M5 12h14" strokeLinecap="round" />
-    </svg>
-  ),
-  hip: (
-    <svg viewBox="0 0 24 24" className="w-5 h-5 text-clay/70" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M7 14c0 2.5 2.2 4 5 4s5-1.5 5-4" strokeLinecap="round" />
-      <path d="M6 14h12" strokeLinecap="round" />
-    </svg>
-  ),
-};
-
 const BODY_MEASURES = [
   { key: 'shoulder', label: 'Shoulder' },
   { key: 'chest', label: 'Chest' },
   { key: 'waist', label: 'Waist' },
   { key: 'hip', label: 'Hip' },
 ];
+
+/** Landmarks in the original 300×400 silhouette space (then scaled). */
+const CALLOUTS = [
+  { key: 'shoulder', label: 'Shoulder', x: 112, y: 118, side: 'left' },
+  { key: 'chest', label: 'Chest', x: 188, y: 168, side: 'right' },
+  { key: 'waist', label: 'Waist', x: 112, y: 228, side: 'left' },
+  { key: 'hip', label: 'Hip', x: 188, y: 278, side: 'right' },
+];
+
+const SILHOUETTE_PATH =
+  'M150 40a26 26 0 1 1 0 52 26 26 0 0 1 0-52Zm-38 70h76c18 0 30 14 30 32l-8 78h-18l-4 120h-24l-6-90h-4l-6 90h-24l-4-120H102l-8-78c0-18 12-32 30-32Z';
+
+/** Larger figure, still padded so callouts stay inside the box. */
+const SCALE = 0.78;
+const OX = 95;
+const OY = 8;
+
+const mapX = (x) => OX + x * SCALE;
+const mapY = (y) => OY + y * SCALE;
 
 export default function FitProfileDisplay({ profile, className = '' }) {
   if (!profile) return null;
@@ -40,31 +34,131 @@ export default function FitProfileDisplay({ profile, className = '' }) {
   const skinCategory = profile.skinTone;
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Height hero */}
-      {profile.height != null && (
-        <div className="border border-ink/10 bg-parchment/50 px-6 py-5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <svg viewBox="0 0 24 24" className="w-6 h-6 text-clay shrink-0" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="text-sm text-ink-soft">Height</span>
-          </div>
-          <div className="font-display text-4xl font-light">{formatHeight(profile.height, heightUnit)}</div>
-        </div>
-      )}
-
-      {/* Body measurements in inches */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {BODY_MEASURES.map(({ key, label }) => (
-          <div key={key} className="border border-ink/10 bg-ivory px-4 py-5">
-            <div className="flex items-center gap-2 mb-2">
-              {MEASURE_ICONS[key]}
-              <span className="text-sm text-ink-soft">{label}</span>
+    <div className={`space-y-6 ${className}`}>
+      <div className="grid lg:grid-cols-2 gap-6 items-stretch">
+        {/* Left — classic text + values */}
+        <div className="space-y-3">
+          {profile.height != null && (
+            <div className="border border-ink/10 bg-parchment/50 px-6 py-5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6 text-clay shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path
+                    d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span className="text-sm text-ink-soft">Height</span>
+              </div>
+              <div className="font-display text-4xl font-light">
+                {formatHeight(profile.height, heightUnit)}
+              </div>
             </div>
-            <div className="font-display text-3xl font-light">{formatIn(profile[key])}</div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            {BODY_MEASURES.map(({ key, label }) => {
+              const value = profile[key];
+              if (value == null || value === '') return null;
+              return (
+                <div key={key} className="border border-ink/10 bg-ivory px-4 py-5">
+                  <div className="text-sm text-ink-soft mb-2">{label}</div>
+                  <div className="font-display text-3xl font-light">{formatIn(value)}</div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+        </div>
+
+        {/* Right — silhouette only (no height), fills the box */}
+        <div className="border border-ink/10 bg-parchment/40 flex items-center justify-center overflow-hidden">
+          <div className="relative w-full h-full px-2 py-3 sm:px-3 sm:py-4">
+            <svg
+              viewBox="0 0 420 360"
+              className="w-full h-full max-h-[420px] object-contain text-ink/15"
+              preserveAspectRatio="xMidYMid meet"
+              role="img"
+              aria-label="Body measurements on silhouette"
+            >
+              <ellipse
+                cx={mapX(150)}
+                cy={mapY(388)}
+                rx={70 * SCALE}
+                ry={8 * SCALE}
+                fill="currentColor"
+                className="opacity-40"
+              />
+
+              <g transform={`translate(${OX} ${OY}) scale(${SCALE})`}>
+                <path d={SILHOUETTE_PATH} fill="currentColor" className="text-ink/20" />
+              </g>
+
+              {CALLOUTS.map(({ key, label, x, y, side }) => {
+                const value = profile[key];
+                if (value == null || value === '') return null;
+
+                const cx = mapX(x);
+                const cy = mapY(y);
+                const labelX = side === 'left' ? 78 : 342;
+                const anchor = side === 'left' ? 'end' : 'start';
+                const elbowX = side === 'left' ? cx - 12 : cx + 12;
+
+                return (
+                  <g key={key} className="text-ink">
+                    <circle cx={cx} cy={cy} r="3.5" fill="currentColor" className="text-clay" />
+                    <line
+                      x1={cx}
+                      y1={cy}
+                      x2={elbowX}
+                      y2={cy}
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      className="text-clay/50"
+                      opacity="0.85"
+                    />
+                    <line
+                      x1={elbowX}
+                      y1={cy}
+                      x2={labelX}
+                      y2={cy}
+                      stroke="currentColor"
+                      strokeWidth="1"
+                      className="text-ink/20"
+                    />
+                    <text
+                      x={labelX}
+                      y={cy - 8}
+                      textAnchor={anchor}
+                      fill="currentColor"
+                      fontSize="10"
+                      letterSpacing="0.12em"
+                      opacity="0.6"
+                      style={{ fontFamily: 'inherit' }}
+                    >
+                      {label.toUpperCase()}
+                    </text>
+                    <text
+                      x={labelX}
+                      y={cy + 13}
+                      textAnchor={anchor}
+                      fill="currentColor"
+                      fontSize="18"
+                      style={{ fontFamily: 'Georgia, serif' }}
+                    >
+                      {formatIn(value)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
       </div>
 
       {/* Body type + skin tone */}
