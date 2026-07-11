@@ -14,9 +14,9 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 bg-ivory/85 backdrop-blur-md border-b border-ink/10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-24 flex items-center justify-between gap-6">
         <Link to="/" className="block">
-          <BrandLogo />
+          <BrandLogo className="h-20 w-auto" />
         </Link>
 
         <nav className="hidden md:flex items-center gap-7">
