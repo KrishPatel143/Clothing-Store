@@ -3,10 +3,34 @@ import { GoogleGenAI } from '@google/genai';
 const MAX_BYTES = 10 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 15_000;
 
-const TRY_ON_PROMPT = `You are a fashion try-on assistant. Image 1 is a person. Image 2 is a clothing product.
-Generate a realistic photo of the same person wearing that garment. Keep the person's face,
-body shape, pose, and background as close to Image 1 as possible. The clothing should match
-Image 2 in style and color. Full-body or upper-body as appropriate for the garment.`;
+// Output background: 'original' keeps the person's photo background,
+// 'studio' renders on a clean neutral backdrop (usually looks better for
+// webcam scan photos with cluttered rooms). Controlled via TRYON_BACKGROUND.
+const BACKGROUND_RULES = {
+  original:
+    'Keep the original background, lighting, camera angle, and framing from the person photo.',
+  studio:
+    'Place the person against a clean, softly lit, neutral light-gray studio background, ' +
+    'like a professional e-commerce fashion photo. Keep the camera angle, framing, and ' +
+    'lighting direction on the person consistent with the person photo.',
+};
+
+function buildTryOnPrompt(backgroundMode) {
+  const backgroundRule = BACKGROUND_RULES[backgroundMode] || BACKGROUND_RULES.original;
+  return `Create a photorealistic virtual try-on image.
+The first image above is the person. The second image is the garment product photo.
+
+Show the exact same person wearing the garment from the product photo.
+
+Strict rules:
+- Preserve the person's identity exactly: face, skin tone, hairstyle, body shape, and pose must be identical to the person photo.
+- ${backgroundRule}
+- Replace only the corresponding clothing item; leave all other clothing and accessories unchanged.
+- Extract only the garment from the product photo — ignore its background, mannequin, model, or any text/watermarks in it.
+- Reproduce the garment faithfully: exact color, fabric texture, pattern, prints, logos, neckline, sleeve length, and fit.
+- The garment must drape naturally on the body with realistic wrinkles, shadows, and fit.
+- Output one photorealistic photo only. No text, watermarks, borders, or collage.`;
+}
 
 let client = null;
 
@@ -41,6 +65,23 @@ function decodeBase64Image(base64, label) {
     throw err;
   }
   return buf;
+}
+
+function sniffImageMime(buf) {
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return 'image/png';
+  }
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    buf.length >= 12 &&
+    buf.toString('ascii', 0, 4) === 'RIFF' &&
+    buf.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return 'image/jpeg';
 }
 
 function parseDataUri(url) {
@@ -165,15 +206,19 @@ function geminiFailureMeta(response) {
 
 export async function generateTryOn({ personImageBase64, productImageUrl, log }) {
   const personBytes = decodeBase64Image(personImageBase64, 'personImageBase64');
-  log?.step('validate_person_image', { bytes: personBytes.length });
+  const personMime = sniffImageMime(personBytes);
+  log?.step('validate_person_image', { bytes: personBytes.length, mimeType: personMime });
 
   const product = await fetchProductImage(productImageUrl, log);
 
   const ai = getClient();
   const model = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image';
+  const backgroundMode = process.env.TRYON_BACKGROUND || 'original';
   log?.step('gemini_request_start', {
     model,
+    backgroundMode,
     personBytes: personBytes.length,
+    personMime,
     productBytes: product.bytes.length,
     productMime: product.mimeType,
   });
@@ -187,14 +232,16 @@ export async function generateTryOn({ personImageBase64, productImageUrl, log })
         {
           role: 'user',
           parts: [
-            { text: TRY_ON_PROMPT },
-            { inlineData: { mimeType: 'image/jpeg', data: personImageBase64 } },
+            { text: 'Person photo:' },
+            { inlineData: { mimeType: personMime, data: personImageBase64 } },
+            { text: 'Garment product photo:' },
             {
               inlineData: {
                 mimeType: product.mimeType,
                 data: product.bytes.toString('base64'),
               },
             },
+            { text: buildTryOnPrompt(backgroundMode) },
           ],
         },
       ],
