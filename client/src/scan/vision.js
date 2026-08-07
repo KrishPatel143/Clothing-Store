@@ -17,19 +17,22 @@ async function filesetResolver() {
   return FilesetResolver.forVisionTasks(WASM_BASE);
 }
 
+/** Fresh PoseLandmarker instance (needed for simultaneous dual-camera R&D). */
+export async function createPoseLandmarker() {
+  const [{ PoseLandmarker }, vision] = await Promise.all([
+    import('@mediapipe/tasks-vision'),
+    filesetResolver(),
+  ]);
+  return PoseLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: POSE_MODEL, delegate: 'GPU' },
+    runningMode: 'VIDEO',
+    numPoses: 1,
+  });
+}
+
 export function getPoseLandmarker() {
   if (!poseLandmarkerPromise) {
-    poseLandmarkerPromise = (async () => {
-      const [{ PoseLandmarker }, vision] = await Promise.all([
-        import('@mediapipe/tasks-vision'),
-        filesetResolver(),
-      ]);
-      return PoseLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: POSE_MODEL, delegate: 'GPU' },
-        runningMode: 'VIDEO',
-        numPoses: 1,
-      });
-    })().catch((err) => {
+    poseLandmarkerPromise = createPoseLandmarker().catch((err) => {
       poseLandmarkerPromise = null;
       throw err;
     });

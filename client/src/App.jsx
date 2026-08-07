@@ -11,6 +11,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Profile from './pages/Profile.jsx';
 import ScanPage from './pages/ScanPage.jsx';
+import ScanRndPage from './pages/ScanRndPage.jsx';
 import AdminLayout from './admin/AdminLayout.jsx';
 import AdminDashboard from './admin/AdminDashboard.jsx';
 import AdminProducts from './admin/AdminProducts.jsx';
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
           <Route path="/scan" element={<ScanPage />} />
+          <Route path="/scan-rnd" element={<ScanRndPage />} />
           <Route
             path="/admin"
             element={<RequireAdmin><AdminLayout /></RequireAdmin>}

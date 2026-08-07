@@ -1,0 +1,75 @@
+---
+
+**SLIDE 1**
+
+### Technology-Led Apparel Experience
+
+linencut & more combines body-measurement technology with demand-led manufacturing to create better-fitting garments while reducing waste, returns, and inventory inefficiencies.
+
+**KEY TECHNOLOGY ADVANTAGES**
+
+**Demand-Based Manufacturing**
+Garments are manufactured post-order instead of mass-produced.
+
+- Lower inventory costs
+- Better working capital efficiency
+- Lower discount dependency
+
+*(Image: factory/production floor)*
+
+---
+
+**SLIDE 2**
+
+### AI-Powered Body Scan — No Guesswork Sizing
+
+Shoppers get their measurements in seconds using just their phone camera — no tape measure, no store visit, no manual entry. The scan runs entirely on the customer's device, so no private photos or videos are ever sent to our servers.
+
+**KEY CUSTOMER ADVANTAGES**
+
+**Instant, Private, Accurate**
+Camera-based scan estimates chest, waist, hip, and shoulder in under a minute.
+
+- Builds customer trust (privacy-first, nothing stored)
+- Removes size-guessing at checkout
+- Works on any smartphone — zero extra hardware
+
+*(Image: person using phone camera / scan UI)*
+
+---
+
+**SLIDE 3**
+
+### Smart Fit & Personalized Recommendations
+
+Every customer is matched to their best-fitting size and most-flattering styles automatically — based on real body shape and skin tone, not generic size charts.
+
+**KEY SALES ADVANTAGES**
+
+**Right Product, Right Customer, First Time**
+Our matching engine ranks products by fit confidence and personal suitability.
+
+- Fewer returns from wrong sizing
+- Higher conversion with "Fits Me" confidence score
+- Personalized upsell — recommends what actually suits the shopper
+
+*(Image: product recommendation carousel / app screen)*
+
+---
+
+**SLIDE 4**
+
+### Virtual Try-On & The Business Case
+
+Customers can preview how a garment will actually look on them before buying — powered by AI image generation, with no photos stored on our servers. This turns browsing into buying with confidence.
+
+**KEY BUSINESS ADVANTAGES**
+
+**See It, Trust It, Buy It**
+On-demand try-on preview available on every product page.
+
+- Reduces cart abandonment and return rates
+- Differentiates us from every standard e-commerce competitor
+- Full customer journey: Scan → Fit → Try-On → Purchase
+
+*(Image: before/after try-on preview or customer holding phone with garment overlay)*
