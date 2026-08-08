@@ -1,0 +1,506 @@
+================================================================================
+  LINENCUT & MORE — FULL TECHNICAL DOCUMENT
+  AI-Powered Smart Clothing Store
+================================================================================
+
+Document purpose : Interview / technical discussion reference
+Project type     : Full-stack e-commerce with client-side body scan & AI try-on
+Last updated     : July 2026
+
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+linencut & more is a full-stack clothing e-commerce platform. Shoppers can
+browse products, add items to a cart, and place orders. The differentiating
+feature is a camera-based BODY SCAN that runs entirely in the browser:
+
+  - Measures the shopper using MediaPipe (pose + segmentation)
+  - Estimates chest, waist, hip, shoulder (cm)
+  - Classifies body type and skin tone
+  - Recommends correctly sized, well-matched clothing
+  - Optionally generates a virtual try-on preview via Google Gemini
+
+Privacy principle: camera frames are NOT uploaded for sizing. Only derived
+numeric measurements are sent to the API. A try-on photo is stored locally
+(IndexedDB) and sent to the server only when the user requests a preview;
+the server does not persist that image.
+
+
+================================================================================
+2. TECH STACK
+================================================================================
+
+FRONTEND
+  - React 18
+  - Vite 6 (build tool / dev server)
+  - React Router DOM v6
+  - Tailwind CSS v4 (@tailwindcss/vite)
+  - MediaPipe Tasks Vision (@mediapipe/tasks-vision)
+      Pose Landmarker + Selfie Segmenter (lazy-loaded, 100% client-side)
+
+BACKEND
+  - Node.js
+  - Express 5
+  - JWT (jsonwebtoken) for authentication
+  - bcryptjs for password hashing
+  - dotenv, cors
+  - @google/genai for virtual try-on image generation
+
+DATABASE
+  - MongoDB with Mongoose 8
+  - Optional in-memory MongoDB (mongodb-memory-server) for local dev
+
+REPO LAYOUT (monorepo)
+  Clothing-Store/
+    package.json          # root scripts: install:all, dev, seed, build
+    client/               # React + Vite frontend (port 5173)
+    server/               # Express API (port 5000)
+    README.md
+    TECHNICAL_DOCUMENT.txt (this file)
+
+
+================================================================================
+3. HOW TO RUN
+================================================================================
+
+  npm run install:all
+  cp server/.env.example server/.env
+  # Set: MONGODB_URI, JWT_SECRET
+  # Optional: GEMINI_API_KEY (for virtual try-on)
+
+  npm run seed            # categories, sample products, admin user
+  npm run dev             # API :5000 + client :5173
+
+Default admin:
+  Email    : admin@store.test
+  Password : admin123
+  Admin UI : /admin
+
+No local MongoDB?
+  node server/src/seed/dev-db.js   # starts in-memory MongoDB
+  or use MongoDB Atlas and set MONGODB_URI
+
+
+================================================================================
+4. SYSTEM ARCHITECTURE
+================================================================================
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │                        BROWSER (Client)                      │
+  │  React pages + Cart/Auth context                             │
+  │  /scan → camera → MediaPipe Pose + Segmenter                 │
+  │       → measure.js → classify.js → IndexedDB (photo)         │
+  │  Product page → local fit hint (fit.js) + optional try-on    │
+  └───────────────┬─────────────────────────────┬───────────────┘
+                  │ REST JSON                    │ try-on images
+                  │ (measurements only)          │ (on demand)
+  ┌───────────────▼─────────────────────────────▼───────────────┐
+  │                     EXPRESS API (:5000)                      │
+  │  /api/auth  /api/products  /api/categories  /api/orders      │
+  │  /api/users /api/recommendations  /api/tryon  /api/health    │
+  │  JWT middleware · sizeMatcher · Gemini try-on proxy          │
+  └───────────────┬─────────────────────────────────────────────┘
+                  │
+  ┌───────────────▼─────────────────────────────────────────────┐
+  │                     MongoDB (Mongoose)                       │
+  │  User · Product · Category · Order                           │
+  └─────────────────────────────────────────────────────────────┘
+
+Ports
+  Client : http://localhost:5173
+  API    : http://localhost:5000
+
+
+================================================================================
+5. FRONTEND STRUCTURE
+================================================================================
+
+client/src/
+  App.jsx                 # Routes, RequireAuth, RequireAdmin
+  main.jsx
+  api/client.js           # Fetch helper + auth header
+  context/
+    AuthContext.jsx       # Login state, JWT in localStorage
+    CartContext.jsx       # Guest-friendly cart (local persistence)
+  pages/
+    Home.jsx              # Landing, featured / trending
+    Shop.jsx              # Listing, filters, pagination
+    ProductDetail.jsx     # Gallery, size chart, Fits me?, try-on
+    CartPage.jsx
+    Checkout.jsx          # Auth required
+    Login.jsx / Register.jsx
+    Profile.jsx           # Saved measurements, delete try-on photo
+    ScanPage.jsx          # Full body-scan UX
+  admin/
+    AdminLayout.jsx
+    AdminDashboard.jsx    # Stock, views, recommendations, low stock
+    AdminProducts.jsx / AdminProductForm.jsx
+    AdminCategories.jsx
+    AdminOrders.jsx
+  components/             # Navbar, Footer, ProductCard, SizeChart, etc.
+  scan/
+    vision.js             # MediaPipe loaders / landmark indices
+    measure.js            # Framing feedback + measurement pipeline
+    classify.js           # Body type + ITA skin tone
+    fit.js                # Client-side size match (mirrors server)
+    idb.js / userPhoto.js # IndexedDB photo storage
+    tryOnCache.js         # Local try-on result caching
+    tryOnTrace.js         # Client-side try-on logging helpers
+    units.js              # cm / inch helpers
+
+ROUTES (customer)
+  /                 Home
+  /shop             Product listing
+  /product/:id      Product detail
+  /cart             Cart
+  /checkout         Checkout (auth required)
+  /login /register  Auth
+  /profile          Profile (auth required)
+  /scan             Body scan (full-screen, no navbar)
+
+ROUTES (admin — role === 'admin')
+  /admin            Dashboard
+  /admin/products   Product CRUD
+  /admin/categories Category CRUD
+  /admin/orders     Order status management
+
+
+================================================================================
+6. BACKEND STRUCTURE
+================================================================================
+
+server/src/
+  index.js                # Express app, CORS, JSON limits, route mount
+  config/db.js            # MongoDB connection
+  middleware/auth.js      # signToken, requireAuth, requireAdmin
+  models/
+    User.js
+    Product.js
+    Category.js
+    Order.js
+  routes/
+    auth.js
+    products.js
+    categories.js
+    users.js
+    orders.js
+    recommendations.js
+    tryon.js
+  utils/
+    sizeMatcher.js        # Weighted nearest-fit scoring
+    geminiTryOn.js        # Gemini image generation
+    tryOnLogger.js        # Request tracing for try-on
+  seed/
+    seed.js               # Demo data + admin user
+    dev-db.js             # In-memory MongoDB helper
+
+API BASE: /api
+
+  GET  /api/health
+  POST /api/auth/register
+  POST /api/auth/login
+  ...  /api/products
+  ...  /api/categories
+  ...  /api/users
+  ...  /api/orders
+  POST /api/recommendations     # public (guests allowed)
+  POST /api/tryon               # rate-limited; larger JSON body (12mb)
+
+
+================================================================================
+7. AUTHENTICATION & AUTHORIZATION
+================================================================================
+
+  - Passwords hashed with bcrypt (salt rounds = 10)
+  - On login/register, server issues a JWT containing { id, role }
+  - Default expiry: 7 days (JWT_EXPIRES_IN)
+  - Client sends: Authorization: Bearer <token>
+  - requireAuth  → valid JWT + existing user
+  - requireAdmin → user.role === 'admin'
+  - Roles: 'customer' | 'admin'
+
+Frontend guards:
+  RequireAuth  → redirects to /login
+  RequireAdmin → redirects to /login if not admin
+
+
+================================================================================
+8. DATA MODELS
+================================================================================
+
+USER
+  name, email (unique), passwordHash
+  role: customer | admin
+  savedMeasurements:
+    height, shoulder, chest, waist, hip (cm)
+    bodyType: Rectangle | Hourglass | Pear | Inverted Triangle | Apple | Athletic
+    skinTone: Fair | Wheatish | Medium | Deep
+    skinColorHex, heightUnit (cm|ft), measuredAt
+  cart: [{ product, size, color, quantity }]
+  wishlist: [Product ObjectIds]
+  timestamps
+
+PRODUCT
+  name, description
+  category, subCategory (Category refs)
+  price, stock
+  images[], colors[]
+  suitedSkinTones[], suitedBodyTypes[]   # empty = suits everyone
+  sizeChart: [{ size, shoulder, chest, hip }]  # stored in cm
+  featured, views, recommendedCount
+  text index on name + description
+
+CATEGORY
+  name, slug (unique)
+  parentCategory (null = top-level Men/Women/Kids; else sub-category)
+  unique index on (name, parentCategory)
+
+ORDER
+  user
+  items: [{ product, name, price, size, color, quantity }]
+  total
+  status: pending | confirmed | shipped | delivered | cancelled
+  address: fullName, line1, line2, city, state, postalCode, phone
+  timestamps
+
+
+================================================================================
+9. BODY SCAN PIPELINE (CORE FEATURE)
+================================================================================
+
+UI FLOW (/scan)
+  1. Intro: enter height (scale calibration), guidance, privacy note,
+     optional manual measurement entry
+  2. Full-screen camera with silhouette overlay
+     Live framing feedback: "step back", "stand straight", "hold still"
+     Auto-capture after ~1.5 seconds of good framing
+  3. On-device processing (see below)
+  4. Results: measurement cards, body type + tone notes,
+     recommended products carousel with best-fit size pre-selected,
+     option to save to profile
+
+MEASUREMENT PIPELINE (client — measure.js + vision.js)
+  a. MediaPipe Pose Landmarker → pixel / normalized skeleton
+  b. User height (cm) → cm-per-pixel (and aspect-corrected X scale)
+  c. MediaPipe Selfie Segmenter → torso silhouette
+  d. Sample mask widths at chest / waist / hip vertical levels
+  e. Ellipse / Ramanujan circumference from front width + depth ratios
+       DEPTH_RATIO ≈ chest 0.72, waist 0.75, hip 0.78
+  f. Landmark fallbacks if mask widths are missing/implausible
+  g. Output: height, shoulder, chest, waist, hip (cm)
+
+CLASSIFICATION (classify.js)
+  Body type from chest/waist/hip ratios (style-guide thresholds)
+  Skin tone: sample patch below nose → ITA (Individual Typology Angle)
+             → Fair / Wheatish / Medium / Deep
+
+PRIVACY
+  Frames never sent for recommendations
+  POST /api/recommendations receives only numbers + labels
+  One scan frame may be saved in IndexedDB for try-on only
+
+
+================================================================================
+10. SIZE MATCHING & RECOMMENDATIONS
+================================================================================
+
+Shared logic:
+  Server : server/src/utils/sizeMatcher.js
+  Client : client/src/scan/fit.js  (instant "Fits me?" on product page)
+
+ALGORITHM (weighted nearest-fit)
+  Dimension weights:
+    chest 0.35, waist 0.30, hip 0.20, shoulder 0.15
+  For each size-chart row:
+    Skip missing dimensions on either side
+    deviation = garment - user (positive = roomier)
+    If garment smaller (tight): multiply |diff| by TIGHT_PENALTY 1.6
+    Weighted average deviation (cm)
+  Best size = lowest deviation
+  Fit confidence = 100 * exp(-deviation / 6)   # ~0cm → 100, ~10cm → ~20
+
+PRODUCT RANKING (rankProducts)
+  Start with fit confidence
+  +12 if product suits body type (or product has no body-type filter)
+  +8  if product suits skin tone (or no tone filter)
+  Sort by matchScore descending
+
+API: POST /api/recommendations
+  Body: { measurements, bodyType, skinTone, category?, limit? }
+  Filters products with stock > 0 and non-empty sizeChart
+  Returns ranked list with recommendedSize, fitConfidence, matchScore
+  Increments product.recommendedCount for analytics
+  Public endpoint (guests can scan without login)
+
+
+================================================================================
+11. VIRTUAL TRY-ON
+================================================================================
+
+When:
+  After a body scan, if a local photo exists in IndexedDB, product pages
+  show "See how it looks on you".
+
+Flow:
+  Client sends personImageBase64 + productImageUrl → POST /api/tryon
+  Server rate limit: 10 requests / minute / IP
+  Server fetches product image, calls Gemini image generation
+  Default model: gemini-2.5-flash-image (prompt-based; not a dedicated
+  garment try-on model — results may vary)
+  Returns JPEG preview; images are NOT stored on the server
+  User can delete local photo from Profile
+
+Setup:
+  GEMINI_API_KEY in server/.env
+  (https://aistudio.google.com/apikey)
+
+Note: Works best with real JPEG/PNG product photos (not SVG placeholders).
+
+
+================================================================================
+12. E-COMMERCE FEATURES
+================================================================================
+
+CUSTOMER
+  - Home with featured / trending rows
+  - Shop: filters (category, sub-category, size, price, search, sort)
+    + pagination
+  - Product detail: gallery, size chart (cm/in toggle), Fits me?, try-on
+  - Cart: guest-friendly, persisted locally
+  - Checkout + order history (auth required)
+  - Profile: saved body measurements from scan
+
+ADMIN
+  - Dashboard: product/stock totals, most-viewed, most-recommended,
+    low-stock alerts
+  - Product CRUD with dynamic size-chart editor (cm⇄in entry)
+  - Category CRUD (Men/Women/Kids → sub-categories);
+    delete guarded if category is in use
+  - Orders table with status updates
+
+
+================================================================================
+13. KEY DESIGN DECISIONS (INTERVIEW TALKING POINTS)
+================================================================================
+
+1. Client-side computer vision
+   Why: Privacy (no body video on server), lower bandwidth, faster feedback.
+   Trade-off: Single RGB camera → circumference is an estimate (ellipse model),
+   not a 3D body scan. UI labels results as estimates; manual size always allowed.
+
+2. Height as scale reference
+   Why: Without depth/LiDAR, absolute scale needs a known length. User height
+   calibrates cm-per-pixel for the whole skeleton/silhouette.
+
+3. Dual size matcher (client + server)
+   Why: Instant UX on product pages without an API round-trip; server remains
+   source of truth for recommendation lists and analytics.
+
+4. Tightness penalty (1.6×)
+   Why: A garment that is too small is worse than one that is slightly large;
+   scoring reflects real shopping preference.
+
+5. Try-on as optional Gemini proxy
+   Why: Stateless server (no photo storage), rate-limited, feature-flagged by
+   API key presence. Sizing still works without Gemini.
+
+6. Guest-friendly cart + public recommendations
+   Why: Lower friction — scan and browse before creating an account.
+
+
+================================================================================
+14. ENVIRONMENT VARIABLES
+================================================================================
+
+server/.env (from .env.example)
+
+  MONGODB_URI     MongoDB connection string (local or Atlas)
+  JWT_SECRET      Secret for signing tokens
+  JWT_EXPIRES_IN  Optional (default 7d)
+  PORT            Optional (default 5000)
+  GEMINI_API_KEY  Optional — required only for virtual try-on
+
+
+================================================================================
+15. NPM SCRIPTS
+================================================================================
+
+Root:
+  npm run install:all   Install root + server + client deps
+  npm run seed          Seed database
+  npm run dev           Concurrently run API + Vite client
+  npm run build         Build client for production
+
+Server:
+  npm run dev           node --watch src/index.js
+  npm start             node src/index.js
+  npm run seed          node src/seed/seed.js
+
+Client:
+  npm run dev           vite
+  npm run build         vite build
+  npm run preview       vite preview
+
+
+================================================================================
+16. LIMITATIONS & HONEST DISCLAIMERS
+================================================================================
+
+  - Size recommendations are ESTIMATES (single front camera, no depth sensor).
+  - Virtual try-on quality depends on Gemini prompt-based generation and
+    product image quality; not a specialized garment warping model.
+  - Try-on requires GEMINI_API_KEY; otherwise sizing/recommendations still work.
+  - Seed data includes placeholder / Unsplash images for demo purposes.
+
+
+================================================================================
+17. ONE-MINUTE PROJECT PITCH
+================================================================================
+
+"This is a MERN-stack clothing store. The unique part is an in-browser body
+scan using MediaPipe Pose and Selfie Segmentation. The shopper enters height
+for scale; we estimate chest, waist, hip, and shoulder, classify body type
+and skin tone, then recommend products with a weighted nearest-fit size
+algorithm. Camera frames never leave the device for sizing — only numbers
+go to the API. Optionally, Gemini generates a virtual try-on preview from a
+locally stored photo. Admins manage products, categories, and orders."
+
+
+================================================================================
+18. QUICK Q&A CHEAT SHEET
+================================================================================
+
+Q: What stack?
+A: React + Vite + Tailwind, Node/Express 5, MongoDB/Mongoose, JWT, MediaPipe,
+   Gemini for try-on.
+
+Q: Where does CV run?
+A: 100% in the browser (client-side MediaPipe).
+
+Q: What is sent to the server for sizing?
+A: Only derived measurements and labels — never scan video frames.
+
+Q: How do you get cm without depth?
+A: User height calibrates cm-per-pixel; silhouette widths + ellipse model
+   estimate circumference.
+
+Q: How is best size chosen?
+A: Weighted distance across chest/waist/hip/shoulder; tightness penalized 1.6×;
+   confidence via exponential decay of deviation.
+
+Q: Auth model?
+A: JWT Bearer tokens; bcrypt passwords; customer vs admin roles.
+
+Q: Guest support?
+A: Yes — cart locally; recommendations endpoint is public.
+
+Q: Biggest challenge?
+A: Reliable framing + converting 2D pixels into useful body measurements
+   without a depth camera.
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================

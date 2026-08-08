@@ -7,6 +7,7 @@ const ALL_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const DIMS = [
   ['shoulder', 'Shoulder'],
   ['chest', 'Chest'],
+  ['waist', 'Waist'],
   ['hip', 'Hip'],
 ];
 const BODY_TYPES = ['Rectangle', 'Hourglass', 'Pear', 'Inverted Triangle', 'Apple', 'Athletic'];
@@ -15,7 +16,7 @@ const SKIN_TONES = ['Fair', 'Wheatish', 'Medium', 'Deep'];
 const toIn = (cm) => (cm === '' || cm == null ? '' : Math.round((cm / 2.54) * 10) / 10);
 const toCm = (inch) => (inch === '' || inch == null ? '' : Math.round(inch * 2.54 * 10) / 10);
 
-const emptyRow = (size) => ({ size, shoulder: '', chest: '', hip: '' });
+const emptyRow = (size) => ({ size, shoulder: '', chest: '', waist: '', hip: '' });
 
 export default function AdminProductForm() {
   const { id } = useParams();
@@ -62,6 +63,7 @@ export default function AdminProductForm() {
                 size: r.size,
                 shoulder: r.shoulder ?? '',
                 chest: r.chest ?? '',
+                waist: r.waist ?? '',
                 hip: r.hip ?? '',
               }))
             : [emptyRow('M')],
@@ -118,6 +120,7 @@ export default function AdminProductForm() {
           size: r.size,
           shoulder: r.shoulder === '' ? undefined : Number(r.shoulder),
           chest: r.chest === '' ? undefined : Number(r.chest),
+          waist: r.waist === '' ? undefined : Number(r.waist),
           hip: r.hip === '' ? undefined : Number(r.hip),
         })),
     };
